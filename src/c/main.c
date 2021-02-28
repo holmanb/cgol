@@ -7,7 +7,8 @@
 #include <time.h>
 #define MAX_SIZE 32
 #define DEFAULT_DIR "../../in/"
-#define DEFAULT_INPUT_FILE DEFAULT_DIR "default"
+#define DEFAULT_FILE "default"
+#define DEFAULT_INPUT_FILE DEFAULT_DIR DEFAULT_FILE
 #define clear() printf("\033[H\033[J")
 
 
@@ -21,9 +22,18 @@ struct config {
 	bool generate;
 	long iter;
 	unsigned long sleep;
-	FILE * ifp;
-	char file[512];
+	char *file;
+};
+struct state {
+	struct config cfg;
 	struct grid inArr;
+	FILE * ifp;
+	char *message;
+};
+struct format {
+	char *delim;
+	char deadChar;
+	char liveChar;
 };
 
 void print_usage(void){
@@ -42,10 +52,11 @@ void get_options(int argc, char **argv, struct config *cfg){
 	//struct config *cfg= malloc(sizeof(struct config));
 	if(!cfg) exit(0);
 
-	while ((c = getopt (argc, argv, "f:gs:")) != -1)
+	while ((c = getopt (argc, argv, "f:gi:s:")) != -1)
 		switch (c){
 			case 'f':
-				strcpy(cfg->file, optarg);
+				cfg->file = optarg;
+				printf("file: %s",optarg);
 				break;
 			case 's':
 				cfg->sleep = strtoul(optarg, &ptr, 10);
@@ -72,26 +83,28 @@ void get_options(int argc, char **argv, struct config *cfg){
 //	return cfg;
 }
 
-void read_file(struct config * cfg){
+void read_file(struct state * state){
+	const struct config *cfg = &state->cfg;
 	char line[MAX_SIZE];
 	char *tok;
 	int i=0,j=0;
-	if(!(cfg->ifp = fopen(cfg->file, "r"))){
+	if(!(state->ifp = fopen(cfg->file, "r"))){
 		perror("error opening file");
+		exit(1);
 	}
-	cfg->inArr.x = 0;
-	cfg->inArr.y = 0;
+	state->inArr.x = 0;
+	state->inArr.y = 0;
 
 	/* csv paring code */
-	while(fgets(line, MAX_SIZE, cfg->ifp)){
-		cfg->inArr.x += 1;
-		cfg->inArr.y = 0;
+	while(fgets(line, MAX_SIZE, state->ifp)){
+		state->inArr.x += 1;
+		state->inArr.y = 0;
 		for(tok = strtok(line, ";"); tok && *tok; tok = strtok(NULL, ";\n")){
-			cfg->inArr.y += 1;
+			state->inArr.y += 1;
 			if(!strcmp(tok, "0")){
-				cfg->inArr.matrix[i][j] = 0;
+				state->inArr.matrix[i][j] = 0;
 			} else if (!strcmp(tok, "1")){
-				cfg->inArr.matrix[i][j] = 1;
+				state->inArr.matrix[i][j] = 1;
 			} else {
 				fprintf(stderr, "error parsing file %s\n", cfg->file);
 				exit(0);
@@ -107,15 +120,14 @@ void init_arr(struct grid *g, unsigned x, unsigned y){
 	memset(g->matrix, 0, sizeof(g->matrix[0][0])* x * y);
 }
 
-void write_arr(struct grid *g, FILE * f, char *delim){
+void write_arr(struct grid *g, FILE * f, struct format *fmt){
 	unsigned int i,j;
-	printf("%d:%d\n",g->x,g->y);
 	for(i=0; i < g->x; i++){
 		for(j=0; j < g->y; j++){
 			if(g->matrix[i][j]){
-				fprintf(f, "%c%s", '1', delim);
+				fprintf(f, "%c%s", fmt->liveChar, fmt->delim);
 			} else {
-				fprintf(f, "%c%s", '0', delim);
+				fprintf(f, "%c%s", fmt->deadChar, fmt->delim);
 			}
 		}
 		putc('\n', f);
@@ -125,15 +137,22 @@ void write_arr(struct grid *g, FILE * f, char *delim){
 /* write to file*/
 void write_arr_file(struct grid *g, char *file){
 	char path[512];
+	char delim = ';';
+	struct format f = {
+		.liveChar = '1',
+		.deadChar = '0',
+		.delim = &delim,
+	};
 	strcpy(path, DEFAULT_DIR);
 	strcat(path, file);
 
 	FILE * ofp;
 	if(!(ofp = fopen(path, "w"))){
 		perror("error opening file");
+		exit(1);
 	}
 	printf("Writing array size: %d:%d to file %s\n", g->x, g->y, file);
-	write_arr(g, ofp, ";");
+	write_arr(g, ofp, &f);
 	fflush(ofp);
 	fclose(ofp);
 }
@@ -141,7 +160,13 @@ void write_arr_file(struct grid *g, char *file){
 /* write to stdout*/
 void print_arr(struct grid *g){
 	printf("Printing array size: %d:%d to stdout\n", g->x, g->y);
-	write_arr(g, stdout, "  ");
+	char delim[] = "  ";
+	struct format f = {
+		.liveChar = '1',
+		.deadChar = '0',
+		.delim = delim,
+	};
+	write_arr(g, stdout, &f);
 }
 
 void write_sample(void){
@@ -184,7 +209,7 @@ void gen_rand_array(bool arr[MAX_SIZE][MAX_SIZE]){
 }
 
 void render(struct grid *g){
-	clear();
+	//clear();
 	print_arr(g);
 }
 
@@ -233,16 +258,35 @@ void life(struct grid * g){
 	}
 }
 
-void loop(struct config * cfg, struct grid * g){
+void loop(struct state* state, struct grid * g){
+	const struct config * cfg = &state->cfg;
+	long int iter = cfg->iter;
 	while(cfg->iter != 0){
 		render(g);
+		printf("%s\n", state->message);
 		life(g);
 		sleep((unsigned int)cfg->sleep);
 		/* -1 to iterate forever) */
-		if(!(cfg->iter == -1)){
-			cfg->iter -= 1;
+		if(!(iter == -1)){
+			iter -= 1;
 		}
 	}
+}
+
+void print_args(const struct config *cfg){
+	printf(
+		"\nargs passed:"
+		"\n\tfile: %s"
+		"\n\tgenerate: %d"
+		"\n\titer: %ld"
+		"\n\tsleep: %ld"
+		"\n",
+		cfg->file,
+		cfg->generate,
+		cfg->iter,
+		cfg->sleep
+	);
+	fflush(stdout);
 }
 
 int main(int argc, char **argv){
@@ -251,33 +295,46 @@ int main(int argc, char **argv){
 		.x = MAX_SIZE,
 		.y = MAX_SIZE,
 	};
+	char default_file[] = DEFAULT_INPUT_FILE;
+	char msg[512] = "Initial condition from ";
+
 	/* defaults */
-	struct config cfg = {
-		.file = DEFAULT_INPUT_FILE,
-		.generate = false,
-		.iter = 10,
-		.sleep = 1,
+	struct state state = {
+		.cfg = {
+			.file = default_file,
+			.generate = false,
+			.iter = 10,
+			.sleep = 1,
+		},
 		.inArr = {
 			.x = 0,
 			.y = 0,
 		},
+		.message = msg,
 	};
-	get_options(argc, argv, &cfg);
-	if(cfg.generate){
-		if(cfg.file){
+
+	get_options(argc, argv, &state.cfg);
+	if(state.cfg.generate){
+		if(strcmp(DEFAULT_INPUT_FILE, state.cfg.file)){
+			/* save random if file specified*/
+			printf("saving random matrix to file %s\n",state.cfg.file);
 			init_arr(&rand, MAX_SIZE, MAX_SIZE);
 			gen_rand_array(rand.matrix);
-			write_arr_file(&rand, cfg.file);
+			write_arr_file(&rand, state.cfg.file);
 		} else {
-			fprintf(stderr, "-g must be accompanied by an output file -f [file]\n");
-			exit(1);
+			/* loop random */
+			strcat(state.message, "random generator");
+			gen_rand_array(rand.matrix);
+			loop(&state, &rand);
 		}
 	}
-	printf("Loading file: %s\n", cfg.file);
-	read_file(&cfg);
-	loop(&cfg, &rand);
+	strcat(state.message, "file:");
+	strcat(state.message, state.cfg.file);
+	print_args(&state.cfg);
+	printf("Loading file: %s\n", state.cfg.file);
+	read_file(&state);
+	loop(&state, &rand);
 	printf("exiting\n");
 
 	return 0;
 }
-
