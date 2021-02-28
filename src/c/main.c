@@ -12,8 +12,8 @@
 
 
 struct grid {
-	unsigned x;
-	unsigned y;
+	unsigned int x;
+	unsigned int y;
 	bool matrix[MAX_SIZE][MAX_SIZE];
 };
 
@@ -30,29 +30,18 @@ void print_usage(void){
 	fprintf(stderr,
 "\n -f [file] - specify input file (default) or output file (when used with -g)"
 "\n -g        - generate random file"
-"\n -i [num]  - number of iterations to run (-1 for infinite)"
+"\n -i [iter] - number of iterations to run (-1 for infinite"
 "\n -s [time] - integer time to sleep"
 "\n"
 	);
 }
 
-struct config *get_options(int argc, char **argv){
+void get_options(int argc, char **argv, struct config *cfg){
 	int c;
 	char *ptr;
-	struct config *cfg= malloc(sizeof(struct config));
+	//struct config *cfg= malloc(sizeof(struct config));
 	if(!cfg) exit(0);
 
-	/* defaults */
-	*cfg = (struct config) {
-		.file = DEFAULT_INPUT_FILE,
-		.generate = false,
-		.iter = 10,
-		.sleep = 1,
-		.inArr = {
-			.x = 0,
-			.y = 0,
-		},
-	};
 	while ((c = getopt (argc, argv, "f:gs:")) != -1)
 		switch (c){
 			case 'f':
@@ -80,7 +69,7 @@ struct config *get_options(int argc, char **argv){
 				print_usage();
 				exit(1);
 	}
-	return cfg;
+//	return cfg;
 }
 
 void read_file(struct config * cfg){
@@ -119,7 +108,7 @@ void init_arr(struct grid *g, unsigned x, unsigned y){
 }
 
 void write_arr(struct grid *g, FILE * f, char *delim){
-	int i,j;
+	unsigned int i,j;
 	printf("%d:%d\n",g->x,g->y);
 	for(i=0; i < g->x; i++){
 		for(j=0; j < g->y; j++){
@@ -135,8 +124,12 @@ void write_arr(struct grid *g, FILE * f, char *delim){
 
 /* write to file*/
 void write_arr_file(struct grid *g, char *file){
+	char path[512];
+	strcpy(path, DEFAULT_DIR);
+	strcat(path, file);
+
 	FILE * ofp;
-	if(!(ofp = fopen(file, "w"))){
+	if(!(ofp = fopen(path, "w"))){
 		perror("error opening file");
 	}
 	printf("Writing array size: %d:%d to file %s\n", g->x, g->y, file);
@@ -151,8 +144,9 @@ void print_arr(struct grid *g){
 	write_arr(g, stdout, "  ");
 }
 
-void write_sample(){
+void write_sample(void){
 	int i;
+	char * filename = DEFAULT_DIR "sampleout";
 	bool tmp[10][10] = {
 			{1,0,0,0,0,0,0,0,0,1},
 			{1,1,0,0,0,0,0,0,0,1},
@@ -170,17 +164,18 @@ void write_sample(){
 		.x = 10,
 		.y = 10,
 	};
+	memset(sample.matrix, 0, sizeof(sample.matrix[0][0]) * MAX_SIZE * MAX_SIZE);
 	init_arr(&sample,MAX_SIZE, MAX_SIZE);
 
 	for(i = 0; i < 10; i++){
 		memcpy(&sample.matrix[i][0], &tmp[i][0], sizeof(tmp));
 	}
-	write_arr_file(&sample, DEFAULT_DIR "sampleout");
+	write_arr_file(&sample, filename);
 }
 
 void gen_rand_array(bool arr[MAX_SIZE][MAX_SIZE]){
 	int i, j;
-	srand(time(0));
+	srand((unsigned int) time(0));
 	for(i = 0; i < MAX_SIZE; i++){
 		for(j = 0; j < MAX_SIZE; j++){
 			arr[i][j] = rand() % 2 ? false : true;
@@ -193,11 +188,11 @@ void render(struct grid *g){
 	print_arr(g);
 }
 
-void life(bool arr[MAX_SIZE][MAX_SIZE]){
+void life(struct grid * g){
 	int x, y, i, j, ip, jp, count; /* prime */
 
 	bool new[MAX_SIZE][MAX_SIZE];
-	memset(new, false, sizeof(new[0][0])* MAX_SIZE * MAX_SIZE);
+	memset(new, 0, sizeof(new[0][0]) * MAX_SIZE * MAX_SIZE);
 
 	/* each cell in the matrix */
 	for(i = 0; i < MAX_SIZE; i++){
@@ -211,15 +206,16 @@ void life(bool arr[MAX_SIZE][MAX_SIZE]){
 					/* skip 0,0 */
 					if(jp|ip){
 						/* wrap edges */
-						x = i + ip % MAX_SIZE;
-						y = j + jp % MAX_SIZE;
+						x = (i + ip) % (MAX_SIZE - 1);
+						y = (j + jp) % (MAX_SIZE - 1);
 						if(x < 0){
-							x = MAX_SIZE;
+							x = (MAX_SIZE - 1);
 						}
 						if(y < 0){
-							y = MAX_SIZE;
+							y = (MAX_SIZE - 1);
 						}
-						if(arr[x][y]) {
+						assert(x < MAX_SIZE && y < MAX_SIZE);
+						if(g->matrix[x][y]) {
 							count++;
 						}
 					}
@@ -227,49 +223,61 @@ void life(bool arr[MAX_SIZE][MAX_SIZE]){
 			}
 			if(count == 3) {
 				new[i][j] = true;
-			} else if  (count == 2 && !arr[i][j]) {
+			} else if  (count == 2 && !g->matrix[i][j]) {
 				new[i][j] = true;
 			}
 		}
 	}
 	for(i = 0; i < 10; i++){
-		memcpy(&arr[i][0], &new[i][0], sizeof(new));
+		memcpy(g->matrix, new, sizeof(new));
 	}
 }
 
 void loop(struct config * cfg, struct grid * g){
-	int iter = 0;
-	while(1){
+	while(cfg->iter != 0){
 		render(g);
-		life(g->matrix);
-		sleep(cfg->sleep);
+		life(g);
+		sleep((unsigned int)cfg->sleep);
 		/* -1 to iterate forever) */
-		if(!(cfg->iter == -1) && iter < cfg->iter){
-			break;
+		if(!(cfg->iter == -1)){
+			cfg->iter -= 1;
 		}
 	}
 }
 
 int main(int argc, char **argv){
-	int i;
 
 	struct grid rand = {
 		.x = MAX_SIZE,
 		.y = MAX_SIZE,
 	};
-	struct config *cfg = get_options(argc, argv);
-	//printf("Loading file: %s\n", cfg->file);
-	//read_file(cfg);
-	//print_arr(&cfg->inArr);
-	init_arr(&rand, MAX_SIZE, MAX_SIZE);
-	gen_rand_array(rand.matrix);
+	/* defaults */
+	struct config cfg = {
+		.file = DEFAULT_INPUT_FILE,
+		.generate = false,
+		.iter = 10,
+		.sleep = 1,
+		.inArr = {
+			.x = 0,
+			.y = 0,
+		},
+	};
+	get_options(argc, argv, &cfg);
+	if(cfg.generate){
+		if(cfg.file){
+			init_arr(&rand, MAX_SIZE, MAX_SIZE);
+			gen_rand_array(rand.matrix);
+			write_arr_file(&rand, cfg.file);
+		} else {
+			fprintf(stderr, "-g must be accompanied by an output file -f [file]\n");
+			exit(1);
+		}
+	}
+	printf("Loading file: %s\n", cfg.file);
+	read_file(&cfg);
+	loop(&cfg, &rand);
+	printf("exiting\n");
 
-	print_arr(&rand);
-	loop(cfg, &rand);
-	//write_arr_file(&rand, DEFAULT_DIR "randout");
-	//print_arr(&cfg->inArr);
-
-	free(cfg);
 	return 0;
 }
 
