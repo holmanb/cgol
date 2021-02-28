@@ -23,6 +23,7 @@ struct grid {
 /* user generated values - used immutably after get_opt */
 struct config {
 	bool generate;
+	bool noPrint;
 	long iter;
 	unsigned long sleep;
 	char *file;
@@ -47,6 +48,7 @@ void print_usage(void){
 		"\n -f [file] - specify input file (default) or output file (when used with -g)"
 		"\n -g        - generate random input"
 		"\n -i [iter] - number of iterations to run (-1 for infinite) - default [10]"
+		"\n -n        - noprint - use with -s0 and large -i for benchmarking"
 		"\n -s [time] - integer time to sleep (milliseconds) - default [500]"
 		"\n",
 		stderr
@@ -56,25 +58,28 @@ void print_usage(void){
 void get_options(int argc, char **argv, struct config *cfg){
 	int c;
 	char *ptr;
-	while ((c = getopt (argc, argv, "f:gi:s:")) != -1){
+	while ((c = getopt (argc, argv, "f:gi:ns:")) != -1){
 		switch (c){
 			case 'f':
 				cfg->file = optarg;
 				puts("file: ");
 				puts(optarg);
 				break;
-			case 's':
-				cfg->sleep = strtoul(optarg, &ptr, 10);
-				if(*ptr){
-					fputs("error parsing number", stderr);
-					exit(1);
-				}
-				break;
 			case 'g':
 				cfg->generate = true;
 				break;
 			case 'i':
 				cfg->iter = strtol(optarg, &ptr, 10);
+				if(*ptr){
+					fputs("error parsing number", stderr);
+					exit(1);
+				}
+				break;
+			case 'n':
+				cfg->noPrint = true;
+				break;
+			case 's':
+				cfg->sleep = strtoul(optarg, &ptr, 10);
 				if(*ptr){
 					fputs("error parsing number", stderr);
 					exit(1);
@@ -309,9 +314,11 @@ void loop(struct state* state, struct grid * g){
 	const struct config * cfg = &state->cfg;
 	long int iter = cfg->iter;
 	while(iter != 0){
-		render(g);
-		puts(state->message);
-		printf("iter:%ld\n", iter);
+		if(!cfg->noPrint){
+			render(g);
+			puts(state->message);
+			printf("iter:%ld\n", iter);
+		}
 		life(g);
 		if(cfg->sleep){
 			usleep((useconds_t) cfg->sleep * 1000);
@@ -354,6 +361,7 @@ int main(int argc, char **argv){
 			.file = default_file,
 			.generate = false,
 			.iter = 10,
+			.noPrint = false,
 			.sleep = 500,
 		},
 		.inArr = {
