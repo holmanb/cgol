@@ -6,6 +6,7 @@
 #include <stdbool.h>
 #include <time.h>
 #define MAX_SIZE 32
+/* each data point takes two bytes: "1;", newline takes one */
 #define MAX_LINE_SIZE (MAX_SIZE * 2 + 1)
 #define DEFAULT_DIR "../../in/"
 #define DEFAULT_FILE "default"
@@ -44,9 +45,9 @@ struct format {
 void print_usage(void){
 	fputs(
 		"\n -f [file] - specify input file (default) or output file (when used with -g)"
-		"\n -g        - generate random file"
-		"\n -i [iter] - number of iterations to run (-1 for infinite"
-		"\n -s [time] - integer time to sleep"
+		"\n -g        - generate random input"
+		"\n -i [iter] - number of iterations to run (-1 for infinite) - default [10]"
+		"\n -s [time] - integer time to sleep (milliseconds) - default [500]"
 		"\n",
 		stderr
 	);
@@ -88,7 +89,6 @@ void get_options(int argc, char **argv, struct config *cfg){
 }
 
 void read_file(struct state * state){
-	/* each data point takes two bytes: "1;", newline takes one */
 	char line[MAX_LINE_SIZE];
 	const struct config *cfg = &state->cfg;
 	char *tok;
@@ -294,8 +294,10 @@ void life(struct grid * g){
 				}
 			}
 			if(count == 3) {
+				/* three neighbors: live/born */
 				new[i][j] = true;
-			} else if  (count == 2 && !g->matrix[i][j]) {
+			} else if (count == 2 && g->matrix[i][j]) {
+				/* two neighbors: live */
 				new[i][j] = true;
 			}
 		}
@@ -306,12 +308,15 @@ void life(struct grid * g){
 void loop(struct state* state, struct grid * g){
 	const struct config * cfg = &state->cfg;
 	long int iter = cfg->iter;
-	while(cfg->iter != 0){
+	while(iter != 0){
 		render(g);
 		puts(state->message);
+		printf("iter:%ld\n", iter);
 		life(g);
-		sleep((unsigned int)cfg->sleep);
-		/* -1 to iterate forever) */
+		if(cfg->sleep){
+			usleep((useconds_t) cfg->sleep * 1000);
+		}
+		/* -1 to iterate forever */
 		if(!(iter == -1)){
 			iter -= 1;
 		}
@@ -349,7 +354,7 @@ int main(int argc, char **argv){
 			.file = default_file,
 			.generate = false,
 			.iter = 10,
-			.sleep = 1,
+			.sleep = 500,
 		},
 		.inArr = {
 			.x = 0,
