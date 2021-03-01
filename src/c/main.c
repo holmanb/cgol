@@ -36,7 +36,7 @@ struct state {
 	char *message;
 };
 
-/* used for definiting grid formatting for csv/stdout */
+/* grid formatting for csv/stdout */
 struct format {
 	char *delim;
 	char deadChar;
@@ -112,7 +112,7 @@ void read_file(struct state * state){
 	state->inArr.x = 0;
 	state->inArr.y = 0;
 
-	/* csv paring code */
+	/* csv parsing code */
 	while(fgets(line, MAX_LINE_SIZE, state->ifp)){
 		if(!strcmp(line, "\n")){
 			continue;
@@ -160,19 +160,6 @@ void init_arr(struct grid *g, unsigned x, unsigned y){
 	memset(g->matrix, 0, sizeof(g->matrix[0][0])* x * y);
 }
 
-void printf_fmt(struct format *fmt, FILE *f){
-	fprintf(f,
-		"fmt:"
-		"\n\tdelim: [%s]"
-		"\n\tliveChar: [%c]"
-		"\n\tdeadChar: [%c]"
-		"\n",
-		fmt->delim,
-		fmt->liveChar,
-		fmt->deadChar);
-	fflush(f);
-}
-
 void write_arr(struct grid *g, FILE * f, struct format *fmt){
 	unsigned int i,j;
 	for(i=0; i < g->x; i++){
@@ -199,7 +186,6 @@ void write_arr_file(struct grid *g, char *file){
 		.deadChar = '0',
 		.delim = delim,
 	};
-	printf_fmt(&fmt, stdout);
 	strcpy(path, DEFAULT_DIR);
 	strcat(path, file);
 
@@ -296,7 +282,7 @@ void loop(struct state* state, struct grid * g){
 		if(!cfg->noPrint){
 			render(g);
 			fputs(state->message, stdout);
-			printf(" | iter:%ld\n", iter);
+			printf(" | iter:%ld/%ld\n", cfg->iter - iter + 1, cfg->iter);
 		}
 		life(g);
 		if(cfg->sleep){
@@ -319,21 +305,6 @@ void loop_file(struct state *state, char * file){
 	read_file(state); /* opens fh */
 	loop(state, &state->inArr);
 	fclose(state->ifp);
-}
-
-void print_args(const struct config *cfg){
-	printf(
-		"\nargs passed:"
-		"\n\tfile: %s"
-		"\n\tgenerate: %d"
-		"\n\titer: %ld"
-		"\n\tsleep: %ld"
-		"\n",
-		cfg->file,
-		cfg->generate,
-		cfg->iter,
-		cfg->sleep);
-	fflush(stdout);
 }
 
 int main(int argc, char **argv){
@@ -366,7 +337,6 @@ int main(int argc, char **argv){
 		if(strcmp(DEFAULT_INPUT_FILE, state.cfg.file)){
 			/* save random if file specified*/
 			puts("saving random matrix to file");
-			puts(state.cfg.file);
 			init_arr(&rand, MAX_SIZE, MAX_SIZE);
 			gen_rand_array(rand.matrix);
 			write_arr_file(&rand, state.cfg.file);
@@ -388,6 +358,6 @@ int main(int argc, char **argv){
 	} else {
 		loop_file(&state, state.cfg.file);
 	}
-	puts("\nexiting");
+	puts("exiting");
 	return 0;
 }
