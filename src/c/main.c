@@ -21,6 +21,7 @@ struct grid {
 
 /* user generated values - used immutably after get_opt */
 struct config {
+	bool benchmark;
 	bool generate;
 	bool noPrint;
 	long iter;
@@ -44,26 +45,34 @@ struct format {
 
 void print_usage(void){
 	fputs(
+		"\n -b        - benchmark - equivalent to -n -s0 -i100000000"
 		"\n -f [file] - specify input file (default) or output file (when used with -g)"
 		"\n -g        - generate random input"
+		"\n -h        - help"
 		"\n -i [iter] - number of iterations to run (-1 for infinite) - default [10]"
 		"\n -n        - noprint - use with -s0 and large -i for benchmarking"
 		"\n -s [time] - integer time to sleep (milliseconds) - default [500]"
 		"\n",
-		stderr
-	);
+		stderr);
 }
 
 void get_options(int argc, char **argv, struct config *cfg){
 	int c;
 	char *ptr;
-	while ((c = getopt (argc, argv, "f:gi:ns:")) != -1){
+	while ((c = getopt (argc, argv, "bf:ghi:ns:")) != -1){
 		switch (c){
+			case 'b':
+				cfg->benchmark = true;
+				break;
 			case 'f':
 				cfg->file = optarg;
 				break;
 			case 'g':
 				cfg->generate = true;
+				break;
+			case 'h':
+				print_usage();
+				exit(0);
 				break;
 			case 'i':
 				cfg->iter = strtol(optarg, &ptr, 10);
@@ -152,8 +161,7 @@ void init_arr(struct grid *g, unsigned x, unsigned y){
 }
 
 void printf_fmt(struct format *fmt, FILE *f){
-	fprintf(
-		f,
+	fprintf(f,
 		"fmt:"
 		"\n\tdelim: [%s]"
 		"\n\tliveChar: [%c]"
@@ -299,6 +307,18 @@ void loop(struct state* state, struct grid * g){
 			iter -= 1;
 		}
 	}
+	/* only print final value */
+	if(cfg->noPrint){
+		render(g);
+		printf("iterations: %ld ",cfg->iter);
+	}
+}
+
+void loop_file(struct state *state, char * file){
+	strcat(state->message, file);
+	read_file(state); /* opens fh */
+	loop(state, &state->inArr);
+	fclose(state->ifp);
 }
 
 void print_args(const struct config *cfg){
@@ -312,8 +332,7 @@ void print_args(const struct config *cfg){
 		cfg->file,
 		cfg->generate,
 		cfg->iter,
-		cfg->sleep
-	);
+		cfg->sleep);
 	fflush(stdout);
 }
 
@@ -324,6 +343,8 @@ int main(int argc, char **argv){
 	};
 	char default_file[512] = DEFAULT_INPUT_FILE;
 	char msg[512] = "Initial condition: ";
+	clock_t begin, end;
+	double time_spent;
 	/* defaults */
 	struct state state = {
 		.cfg = {
@@ -351,19 +372,22 @@ int main(int argc, char **argv){
 			write_arr_file(&rand, state.cfg.file);
 		} else {
 			/* loop random */
-			strcat(state.message, "random generator\n");
+			strcat(state.message, "random generator");
 			gen_rand_array(rand.matrix);
 			loop(&state, &rand);
 		}
+	} else if (state.cfg.benchmark){
+		state.cfg.sleep = 0;
+		state.cfg.iter = 1000000;
+		state.cfg.noPrint = true;
+		begin = clock();
+		loop_file(&state, "default file\n");
+		end = clock();
+		time_spent = (double)(end - begin) / CLOCKS_PER_SEC;
+		printf("time: %f", time_spent);
 	} else {
-		print_args(&state.cfg);
-		strcat(state.message, state.cfg.file);
-		putc('\n', stdout);
-
-		read_file(&state); /* opens fh */
-		loop(&state, &state.inArr);
-		fclose(state.ifp);
+		loop_file(&state, state.cfg.file);
 	}
-	puts("\nexiting\n");
+	puts("\nexiting");
 	return 0;
 }
