@@ -8,11 +8,10 @@
 #define MAX_SIZE 32
 /* each data point takes two bytes: "1;", newline takes one */
 #define MAX_LINE_SIZE (MAX_SIZE * 2 + 1)
-#define DEFAULT_DIR "../../in/"
+#define DEFAULT_DIR "../../data/"
 #define DEFAULT_FILE "default"
 #define DEFAULT_INPUT_FILE DEFAULT_DIR DEFAULT_FILE
 #define clear() puts("\033[H\033[J")
-
 
 struct grid {
 	unsigned int x;
@@ -62,8 +61,6 @@ void get_options(int argc, char **argv, struct config *cfg){
 		switch (c){
 			case 'f':
 				cfg->file = optarg;
-				puts("file: ");
-				puts(optarg);
 				break;
 			case 'g':
 				cfg->generate = true;
@@ -186,6 +183,7 @@ void write_arr(struct grid *g, FILE * f, struct format *fmt){
 
 /* write to file*/
 void write_arr_file(struct grid *g, char *file){
+	FILE * ofp;
 	char path[512];
 	char delim[2] = ";";
 	struct format fmt = {
@@ -197,7 +195,6 @@ void write_arr_file(struct grid *g, char *file){
 	strcpy(path, DEFAULT_DIR);
 	strcat(path, file);
 
-	FILE * ofp;
 	if(!(ofp = fopen(path, "w"))){
 		perror("error opening file for write");
 		exit(1);
@@ -210,7 +207,7 @@ void write_arr_file(struct grid *g, char *file){
 
 /* write to stdout*/
 void print_arr(struct grid *g){
-	printf("Printing array size: %d:%d to stdout\n", g->x, g->y);
+	printf("array size: %d:%d\n", g->x, g->y);
 	char delim[] = "  ";
 	struct format f = {
 		.liveChar = '1',
@@ -218,35 +215,6 @@ void print_arr(struct grid *g){
 		.delim = delim,
 	};
 	write_arr(g, stdout, &f);
-}
-
-void write_sample(void){
-	int i;
-	char filename[] = DEFAULT_DIR "sampleout";
-	bool tmp[10][10] = {
-			{1,0,0,0,0,0,0,0,0,1},
-			{1,1,0,0,0,0,0,0,0,1},
-			{1,0,1,0,0,0,0,0,0,1},
-			{1,0,0,1,0,0,0,0,0,1},
-			{1,0,0,0,1,0,0,0,0,1},
-			{1,0,0,0,0,1,0,0,0,1},
-			{1,0,0,0,0,0,1,0,0,1},
-			{1,0,0,0,0,0,0,1,0,1},
-			{1,0,0,0,0,0,0,0,1,1},
-			{1,0,0,0,0,0,0,0,0,1},
-	};
-
-	struct grid sample = {
-		.x = 10,
-		.y = 10,
-	};
-	memset(sample.matrix, 0, sizeof(sample.matrix[0][0]) * MAX_SIZE * MAX_SIZE);
-	init_arr(&sample,MAX_SIZE, MAX_SIZE);
-
-	for(i = 0; i < 10; i++){
-		memcpy(&sample.matrix[i][0], &tmp[i][0], sizeof(tmp));
-	}
-	write_arr_file(&sample, filename);
 }
 
 void gen_rand_array(bool arr[MAX_SIZE][MAX_SIZE]){
@@ -291,7 +259,10 @@ void life(struct grid * g){
 						if(y < 0){
 							y = (MAX_SIZE - 1);
 						}
-						assert(x < MAX_SIZE && y < MAX_SIZE);
+						if(!(x < MAX_SIZE && y < MAX_SIZE)){
+							fputs("error: x or y is not less than MAX_SIZE\n", stderr);
+							exit(1);
+						}
 						if(g->matrix[x][y]) {
 							count++;
 						}
@@ -316,8 +287,8 @@ void loop(struct state* state, struct grid * g){
 	while(iter != 0){
 		if(!cfg->noPrint){
 			render(g);
-			puts(state->message);
-			printf("iter:%ld\n", iter);
+			fputs(state->message, stdout);
+			printf(" | iter:%ld\n", iter);
 		}
 		life(g);
 		if(cfg->sleep){
@@ -347,14 +318,12 @@ void print_args(const struct config *cfg){
 }
 
 int main(int argc, char **argv){
-
 	struct grid rand = {
 		.x = MAX_SIZE,
 		.y = MAX_SIZE,
 	};
 	char default_file[512] = DEFAULT_INPUT_FILE;
-	char msg[512] = "Initial condition from ";
-
+	char msg[512] = "Initial condition: ";
 	/* defaults */
 	struct state state = {
 		.cfg = {
@@ -387,13 +356,8 @@ int main(int argc, char **argv){
 			loop(&state, &rand);
 		}
 	} else {
-		strcat(state.message, "file:");
-		strcat(state.message, state.cfg.file);
-		strcat(state.message, "\n");
 		print_args(&state.cfg);
-
-		puts("Loading file:");
-		puts(state.cfg.file);
+		strcat(state.message, state.cfg.file);
 		putc('\n', stdout);
 
 		read_file(&state); /* opens fh */
@@ -401,6 +365,5 @@ int main(int argc, char **argv){
 		fclose(state.ifp);
 	}
 	puts("\nexiting\n");
-
 	return 0;
 }

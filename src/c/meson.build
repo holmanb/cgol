@@ -2,7 +2,7 @@ project('cgol', 'c',
   meson_version: '>=0.49.0',
   license: 'MIT',
   default_options: [
-#    'optimization=3'
+        'optimization=3'
   ],
   version : '1.0.0')
 
@@ -31,10 +31,6 @@ add_test_setup('valgrind',
 add_test_setup('perf',
   exe_wrapper : ['../benchmark/perf.sh'],
   is_default : false)
-
-
-
-
 
 exe = executable('cgol',
   'main.c')
