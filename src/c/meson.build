@@ -8,6 +8,7 @@ project('cgol', 'c',
   version : '1.0.0')
 
 add_project_arguments([
+  '-std=gnu99',
   '-pedantic',
   '-Wundef',
   '-Wconversion',

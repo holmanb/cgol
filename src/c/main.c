@@ -290,7 +290,6 @@ void life(struct grid * g){
 	/* each cell in the matrix */
 	#pragma omp parallel for private(x, y, jp, ip)
 	for(i = 0; i < g->x; i++){
-		#pragma omp parallel for private(x, y, jp, ip)
 		for(j = 0; j < g->y; j++){
 			count = 0;
 
@@ -414,7 +413,7 @@ void free_grid(struct grid *g){
 int main(int argc, char **argv){
 	char default_file[MAX_PATH_SIZE] = DEFAULT_INPUT_FILE;
 	char msg[MSG_SIZE] = CONDITION_MSG;
-	clock_t begin, end;
+	double start, end; 
 	/* defaults */
 	struct state state = {
 		.cfg = {
@@ -450,12 +449,14 @@ int main(int argc, char **argv){
 		strncat(state.message, state.cfg.file, MAX_PATH_SIZE);
 		read_file(&state);
 	}
-	begin = clock();
+	start = omp_get_wtime(); 
 	loop(&state, &state.inArr);
-	end = clock();
+
+	end = omp_get_wtime(); 
+	printf("run took %f seconds\n", end - start);
 
 	if(state.cfg.benchmark){
-		printf("time: %f\n", (double)(end - begin) / CLOCKS_PER_SEC);
+		printf("time: %f\n", (double)(end - start) / CLOCKS_PER_SEC);
 	}
 	free_grid(&state.inArr);
 	puts("exiting");
