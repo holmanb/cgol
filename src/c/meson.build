@@ -2,7 +2,8 @@ project('cgol', 'c',
   meson_version: '>=0.49.0',
   license: 'MIT',
   default_options: [
-        'optimization=3'
+    'optimization=3',
+    'debug=true',
   ],
   version : '1.0.0')
 
@@ -19,8 +20,12 @@ add_project_arguments([
   '-Wno-missing-braces',
   '-Wno-missing-field-initializers',
   '-Wno-unused-parameter',
-  '-g',
+  '-fopenmp',
 ], language: 'c')
+add_project_link_arguments([
+  '-fopenmp',
+], language: 'c')
+
 
 # validate memory issues
 add_test_setup('valgrind',

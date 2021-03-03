@@ -5,9 +5,11 @@
 #include <assert.h>
 #include <stdbool.h>
 #include <time.h>
+#include <omp.h>
 /* each data point takes two bytes: "1;", newline takes one */
 #define MAX_LINE_SIZE 1<<16
 #define MAX_PATH_SIZE 512
+#define DEFAULT_ITER 10
 #define MSG_SIZE 512
 #define DEFAULT_DIR "../../data/"
 #define DEFAULT_FILE "default"
@@ -30,7 +32,7 @@ struct config {
 	bool benchmark;
 	bool generate;
 	long unsigned matrixSize;
-	bool noPrint;
+	char noPrint;
 	long iter;
 	unsigned long sleep;
 	char *file;
@@ -52,25 +54,27 @@ struct format {
 
 void print_usage(void){
 	fputs(
-		"\n -b        - benchmark - equivalent to -n -s0 -i100000000"
+		"\n -b        - benchmark - prints runtime, otherwise equivalent to -nn -s0"
 		"\n -f [file] - specify input file (default) or output file (when used with -g)"
-		"\n -g        - generate random input"
+		"\n -g        - generate random input (see -f for more info)"
 		"\n -h        - help"
 		"\n -i [num]  - number of iterations to run (-1 for infinite) [default 10]"
 		"\n -m [num]  - size of matrix [default 36], ignored if used with -f"
-		"\n -n        - noprint - use with -s0 and large -i for benchmarking"
-		"\n -s [num]  - integer time to sleep (milliseconds) - [default 500]"
+		"\n -n        - noprint -n will only print final iteration, -nn will not print at all"
+		"\n -s [num]  - integer sleep time (milliseconds) - [default 500]"
 		"\n",
 		stderr);
 }
 
 void get_options(int argc, char **argv, struct config *cfg){
-	int c;
-	char *ptr;
+	int c=0;
+	char *ptr=NULL;
 	while ((c = getopt (argc, argv, "bf:ghi:m:ns:")) != -1){
 		switch (c){
 			case 'b':
 				cfg->benchmark = true;
+				cfg->noPrint = 2;
+				cfg->sleep = 0;
 				break;
 			case 'f':
 				cfg->file = optarg;
@@ -97,7 +101,7 @@ void get_options(int argc, char **argv, struct config *cfg){
 				}
 				break;
 			case 'n':
-				cfg->noPrint = true;
+				cfg->noPrint++;
 				break;
 			case 's':
 				cfg->sleep = strtoul(optarg, &ptr, 10);
@@ -154,6 +158,7 @@ void read_file(struct state *state){
 	bool init = true;
 	long unsigned lineNumElems = 0;
 	long unsigned int i, j = 0;
+	pre_read_file(state);
 	if(!(state->ifp = fopen(cfg->file, "r"))){
 		perror("error opening file for read");
 		exit(1);
@@ -198,6 +203,7 @@ void read_file(struct state *state){
 			}
 		}
 	}
+	fclose(state->ifp);
 }
 
 void init_arr(struct grid *g){
@@ -282,7 +288,9 @@ void life(struct grid * g){
 	init_arr(g);
 
 	/* each cell in the matrix */
+	#pragma omp parallel for private(x, y, jp, ip)
 	for(i = 0; i < g->x; i++){
+		#pragma omp parallel for private(x, y, jp, ip)
 		for(j = 0; j < g->y; j++){
 			count = 0;
 
@@ -352,7 +360,7 @@ void loop(struct state* state, struct grid * g){
 		}
 	}
 	/* only print final value */
-	if(cfg->noPrint){
+	if(cfg->noPrint == 1){
 		render(g);
 		printf("iterations: %ld ",cfg->iter);
 	}
@@ -396,27 +404,24 @@ void alloc_matrix(struct grid *grid, long unsigned int x, long unsigned int y){
 	}
 }
 
-void loop_file(struct state *state, char * file){
-	strncat(state->message, file, MAX_PATH_SIZE);
-	pre_read_file(state);
-	alloc_matrix(&state->inArr, state->inArr.x, state->inArr.y);
-	read_file(state); /* opens fh */
-	loop(state, &state->inArr);
-	fclose(state->ifp);
+void free_grid(struct grid *g){
+	free(g->aptr1);
+	free(g->aptr2);
+	free(g->matrix);
+	free(g->newMatrix);
 }
 
 int main(int argc, char **argv){
 	char default_file[MAX_PATH_SIZE] = DEFAULT_INPUT_FILE;
 	char msg[MSG_SIZE] = CONDITION_MSG;
 	clock_t begin, end;
-	double time_spent;
 	/* defaults */
 	struct state state = {
 		.cfg = {
 			.file = default_file,
 			.generate = false,
-			.iter = 10,
-			.noPrint = false,
+			.iter = DEFAULT_ITER,
+			.noPrint = 0,
 			.sleep = 500,
 			.matrixSize = 36,
 		},
@@ -429,35 +434,30 @@ int main(int argc, char **argv){
 		.message = msg,
 	};
 	get_options(argc, argv, &state.cfg);
+	alloc_matrix(&state.inArr, state.cfg.matrixSize, state.cfg.matrixSize);
 
 	if(state.cfg.generate){
-		alloc_matrix(&state.inArr, state.cfg.matrixSize, state.cfg.matrixSize);
 		gen_rand_array(&state.inArr);
+		strncat(state.message, "random generator", MSG_SIZE - strlen(CONDITION_MSG));
 		if(strcmp(DEFAULT_INPUT_FILE, state.cfg.file)){
-			/* save random data if file specified*/
+			/* save random data to file if -gf */
 			puts("saving random matrix to file");
 			write_arr_file(&state.inArr, state.cfg.file);
-		}else{
-			/* loop random */
-			strncat(state.message, "random generator", MSG_SIZE - strlen(CONDITION_MSG));
-			loop(&state, &state.inArr);
+			free_grid(&state.inArr);
+			exit(0);
 		}
-	}else if(state.cfg.benchmark){
-		state.cfg.sleep = 0;
-		state.cfg.iter = 1000000;
-		state.cfg.noPrint = true;
-		begin = clock();
-		loop_file(&state, "default file\n");
-		end = clock();
-		time_spent = (double)(end - begin) / CLOCKS_PER_SEC;
-		printf("time: %f", time_spent);
 	}else{
-		loop_file(&state, state.cfg.file);
+		strncat(state.message, state.cfg.file, MAX_PATH_SIZE);
+		read_file(&state);
 	}
-	free(state.inArr.aptr1);
-	free(state.inArr.aptr2);
-	free(state.inArr.matrix);
-	free(state.inArr.newMatrix);
+	begin = clock();
+	loop(&state, &state.inArr);
+	end = clock();
+
+	if(state.cfg.benchmark){
+		printf("time: %f\n", (double)(end - begin) / CLOCKS_PER_SEC);
+	}
+	free_grid(&state.inArr);
 	puts("exiting");
 	return 0;
 }
