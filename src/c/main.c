@@ -334,15 +334,19 @@ void loop(struct state* state, struct grid * g){
 		if(!cfg->noPrint){
 			render(g);
 			fputs(state->message, stdout);
-			printf(" | iter:%ld/%ld\n", cfg->iter - iter + 1, cfg->iter);
+			if(-1 == cfg->iter){
+				puts(" | iter: -1");
+			}else{
+				printf(" | iter: %ld/%ld\n", cfg->iter - iter + 1, cfg->iter);
+			}
 		}
 		life(g);
-		if(cfg->sleep){
-			usleep((useconds_t) cfg->sleep * 1000);
-		}
 		/* -1 to iterate forever */
 		if(!(iter == -1)){
 			iter -= 1;
+		}
+		if(cfg->sleep && iter){
+			usleep((useconds_t) cfg->sleep * 1000);
 		}
 	}
 	/* only print final value */
