@@ -5,11 +5,13 @@
 #include <assert.h>
 #include <stdbool.h>
 #include <time.h>
-#define MAX_SIZE 32
 /* each data point takes two bytes: "1;", newline takes one */
 #define MAX_LINE_SIZE 1<<16
+#define MAX_PATH_SIZE 512
+#define MSG_SIZE 512
 #define DEFAULT_DIR "../../data/"
 #define DEFAULT_FILE "default"
+#define CONDITION_MSG "Initial condition: "
 #define DEFAULT_INPUT_FILE DEFAULT_DIR DEFAULT_FILE
 #define clear() puts("\033[H\033[J")
 
@@ -224,15 +226,15 @@ void write_arr(struct grid *g, FILE * f, struct format *fmt){
 /* write to file*/
 void write_arr_file(struct grid *g, char *file){
 	FILE * ofp;
-	char path[512];
+	char path[MAX_PATH_SIZE];
 	char delim[2] = ";";
 	struct format fmt = {
 		.liveChar = '1',
 		.deadChar = '0',
 		.delim = delim,
 	};
-	strcpy(path, DEFAULT_DIR);
-	strcat(path, file);
+	strncpy(path, DEFAULT_DIR, MAX_PATH_SIZE);
+	strncat(path, file, MAX_PATH_SIZE - strlen(DEFAULT_DIR));
 
 	if(!(ofp = fopen(path, "w"))){
 		perror("error opening file for write");
@@ -395,7 +397,7 @@ void alloc_matrix(struct grid *grid, long unsigned int x, long unsigned int y){
 }
 
 void loop_file(struct state *state, char * file){
-	strcat(state->message, file);
+	strncat(state->message, file, MAX_PATH_SIZE);
 	pre_read_file(state);
 	alloc_matrix(&state->inArr, state->inArr.x, state->inArr.y);
 	read_file(state); /* opens fh */
@@ -404,8 +406,8 @@ void loop_file(struct state *state, char * file){
 }
 
 int main(int argc, char **argv){
-	char default_file[512] = DEFAULT_INPUT_FILE;
-	char msg[512] = "Initial condition: ";
+	char default_file[MAX_PATH_SIZE] = DEFAULT_INPUT_FILE;
+	char msg[MSG_SIZE] = CONDITION_MSG;
 	clock_t begin, end;
 	double time_spent;
 	/* defaults */
@@ -437,7 +439,7 @@ int main(int argc, char **argv){
 			write_arr_file(&state.inArr, state.cfg.file);
 		}else{
 			/* loop random */
-			strcat(state.message, "random generator");
+			strncat(state.message, "random generator", MSG_SIZE - strlen(CONDITION_MSG));
 			loop(&state, &state.inArr);
 		}
 	}else if(state.cfg.benchmark){
