@@ -18,24 +18,25 @@
 #define clear() puts("\033[H\033[J")
 
 struct grid {
-	unsigned long int x;
-	unsigned long int y;
 	bool **matrix;
 	bool **newMatrix;
-	/* for memory accounting */
 	bool *aptr1;
 	bool *aptr2;
+	unsigned long int x;
+	unsigned long int y;
+	/* for memory accounting */
 };
 
 /* user generated values - used immutably after get_opt */
 struct config {
+	char *file;
+	unsigned long sleep;
+	unsigned long matrixSize;
+	unsigned long threads;
+	long iter;
+	char noPrint;
 	bool benchmark;
 	bool generate;
-	long unsigned matrixSize;
-	char noPrint;
-	long iter;
-	unsigned long sleep;
-	char *file;
 };
 
 struct state {
@@ -62,6 +63,7 @@ void print_usage(void){
 		"\n -m [num]  - size of matrix [default 36], ignored if used with -f"
 		"\n -n        - noprint -n will only print final iteration, -nn will not print at all"
 		"\n -s [num]  - integer sleep time (milliseconds) - [default 500]"
+		"\n -t [num]  - max number of threads to use"
 		"\n",
 		stderr);
 }
@@ -69,7 +71,7 @@ void print_usage(void){
 void get_options(int argc, char **argv, struct config *cfg){
 	int c=0;
 	char *ptr=NULL;
-	while ((c = getopt (argc, argv, "bf:ghi:m:ns:")) != -1){
+	while ((c = getopt (argc, argv, "bf:ghi:m:ns:t:")) != -1){
 		switch (c){
 			case 'b':
 				cfg->benchmark = true;
@@ -105,6 +107,13 @@ void get_options(int argc, char **argv, struct config *cfg){
 				break;
 			case 's':
 				cfg->sleep = strtoul(optarg, &ptr, 10);
+				if(*ptr){
+					fputs("error parsing number", stderr);
+					exit(1);
+				}
+				break;
+			case 't':
+				cfg->threads = strtoul(optarg, &ptr, 10);
 				if(*ptr){
 					fputs("error parsing number", stderr);
 					exit(1);
@@ -422,6 +431,7 @@ int main(int argc, char **argv){
 			.iter = DEFAULT_ITER,
 			.noPrint = 0,
 			.sleep = 500,
+			.threads = 0,
 			.matrixSize = 36,
 		},
 		.inArr = {
@@ -434,6 +444,10 @@ int main(int argc, char **argv){
 	};
 	get_options(argc, argv, &state.cfg);
 	alloc_matrix(&state.inArr, state.cfg.matrixSize, state.cfg.matrixSize);
+	if(state.cfg.threads){
+		omp_set_num_threads((int)state.cfg.threads);
+	}
+
 
 	if(state.cfg.generate){
 		gen_rand_array(&state.inArr);
