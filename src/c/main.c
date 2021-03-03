@@ -132,9 +132,9 @@ void pre_read_file(struct state *state){
 	for(i = 0; line[i] != '\n'; i++){
 		if(line[i] == ';') {
 			continue;
-		} else if(line[i] == '0' || line[i] == '1') {
+		}else if(line[i] == '0' || line[i] == '1'){
 			count++;
-		} else {
+		}else{
 			fprintf(stderr, "error parsing file %s: found char [%c]\n",
 				cfg->file,
 				line[i]);
@@ -166,11 +166,11 @@ void read_file(struct state *state){
 		for(tok = strtok(line, ";"); tok && *tok; tok = strtok(NULL, ";\n")){
 			if(!strcmp(tok, "0")){
 				state->inArr.matrix[j][i] = 0;
-			} else if (!strcmp(tok, "1")){
+			}else if(!strcmp(tok, "1")){
 				state->inArr.matrix[j][i] = 1;
-			} else if (!strcmp(tok, "\n")){
+			}else if(!strcmp(tok, "\n")){
 				continue;
-			} else {
+			}else{
 				fprintf(stderr, "error parsing file %s: found string [%s]\n",
 					cfg->file,
 					tok);
@@ -183,7 +183,7 @@ void read_file(struct state *state){
 		if(init){
 			lineNumElems = i;
 			init = false;
-		} else {
+		}else{
 			if(lineNumElems != i){
 				fprintf(stderr,
 					"error parsing, "
@@ -212,7 +212,7 @@ void write_arr(struct grid *g, FILE * f, struct format *fmt){
 			if(g->matrix[i][j]){
 				fputc(fmt->liveChar, f);
 				fputs(fmt->delim, f);
-			} else {
+			}else{
 				fputc(fmt->deadChar, f);
 				fputs(fmt->delim, f);
 			}
@@ -274,7 +274,6 @@ void render(struct grid *g){
 /* cgol */
 void life(struct grid * g){
 	int x, y, i, j, ip, jp, count;
-	bool inspect = 0;
 	bool ** tmp; /* for swap */
 
 	/* clear matrix */
@@ -292,39 +291,35 @@ void life(struct grid * g){
 					/* skip 0,0 */
 					if(jp|ip){
 						/* wrap edges */
-						x = (i + ip) % ((int)g->x - 1);
-						y = (j + jp) % ((int)g->y - 1);
-						if(x < 0){
+						x = (i + ip);
+						y = (j + jp);
+						if(x == g->x){
+							x = 0;
+						} else if(x < 0){
 							x = ((int)g->x - 1);
 						}
-						if(y < 0){
+						if(y == g->y){
+							y = 0;
+						}else if(y < 0){
 							y = ((int)g->y - 1);
 						}
 						if(!(x < g->x && y < g->y)){
 							fputs("error: x or y is not less than g->x or g->y\n", stderr);
 							exit(1);
 						}
-						if(g->matrix[x][y]) {
-							if(x == 0 || y == 0 || x == g->x -1 || y == g->y -1){
-								//fprintf(stderr, "checking for (i,j)=(%d,%d) true at (x,y)=(%d,%d) count++\n", i, j, x, y);
-								inspect = true;
-							}
+						if(g->matrix[x][y]){
 							count++;
 						}
 					}
 				}
 			}
-			if(count == 3) {
+			if(count == 3){
 				/* three neighbors: live/born */
 				g->newMatrix[i][j] = true;
-			} else if (count == 2 && g->matrix[i][j]) {
+			}else if(count == 2 && g->matrix[i][j]){
 				/* two neighbors: live */
 				g->newMatrix[i][j] = true;
 			}
-			if(inspect){
-				//fprintf(stderr, "(i,j)=(%d:%d)=%d\n", i, j, g->newMatrix[i][j]?1:0);
-			}
-			inspect = false;
 		}
 	}
 	tmp = g->matrix;
@@ -436,12 +431,12 @@ int main(int argc, char **argv){
 			/* save random data if file specified*/
 			puts("saving random matrix to file");
 			write_arr_file(&state.inArr, state.cfg.file);
-		} else {
+		}else{
 			/* loop random */
 			strcat(state.message, "random generator");
 			loop(&state, &state.inArr);
 		}
-	} else if (state.cfg.benchmark){
+	}else if(state.cfg.benchmark){
 		state.cfg.sleep = 0;
 		state.cfg.iter = 1000000;
 		state.cfg.noPrint = true;
@@ -450,7 +445,7 @@ int main(int argc, char **argv){
 		end = clock();
 		time_spent = (double)(end - begin) / CLOCKS_PER_SEC;
 		printf("time: %f", time_spent);
-	} else {
+	}else{
 		loop_file(&state, state.cfg.file);
 	}
 	free(state.inArr.aptr1);
