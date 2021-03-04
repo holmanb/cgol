@@ -3,7 +3,7 @@ Instructions
 
 Build Deps
 ----------
-meson, ninja, gcc
+meson, ninja, gcc, openmp
 
 Build
 -----

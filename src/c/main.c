@@ -228,11 +228,13 @@ void write_arr(struct grid *g, FILE * f, struct format *fmt){
 		for(j=0; j < g->y; j++){
 			if(g->matrix[i][j]){
 				fputc(fmt->liveChar, f);
-				fputs(fmt->delim, f);
 			}else{
 				fputc(fmt->deadChar, f);
+			}
+			if(j + 1 < g->y){
 				fputs(fmt->delim, f);
 			}
+
 		}
 		putc('\n', f);
 	}
@@ -447,7 +449,6 @@ int main(int argc, char **argv){
 	if(state.cfg.threads){
 		omp_set_num_threads((int)state.cfg.threads);
 	}
-
 
 	if(state.cfg.generate){
 		gen_rand_array(&state.inArr);
