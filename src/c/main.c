@@ -5,6 +5,7 @@
 #include <assert.h>
 #include <stdbool.h>
 #include <time.h>
+#include <signal.h>
 #include <omp.h>
 /* each data point takes two bytes: "1;", newline takes one */
 #define MAX_LINE_SIZE 1<<16
@@ -20,7 +21,6 @@
 		do {fprintf(stderr, "%s:%d:%s(): " fmt, __FILE__, \
 			__LINE__, __func__, __VA_ARGS__); \
 			exit(1);} while (0)
-
 
 struct grid {
 	bool **matrix;
@@ -355,10 +355,16 @@ void life(struct grid * g){
 	g->newMatrix = tmp; /* old matrix will get memset at begining of next life()*/
 }
 
+volatile bool quitExecution = false;
+void sigInt(int null){
+	quitExecution = true;
+}
+
 void loop(struct state* state, struct grid * g){
 	const struct config * cfg = &state->cfg;
 	long int iter = cfg->iter;
-	while(iter != 0){
+	signal(SIGINT, sigInt);
+	while(iter && !quitExecution){
 		if(!cfg->noPrint){
 			render(g);
 			fputs(state->message, stdout);
@@ -427,6 +433,7 @@ void free_grid(struct grid *g){
 	free(g->newMatrix);
 }
 
+
 int main(int argc, char **argv){
 	char default_file[MAX_PATH_SIZE] = DEFAULT_INPUT_FILE;
 	char msg[MSG_SIZE] = CONDITION_MSG;
@@ -477,10 +484,13 @@ int main(int argc, char **argv){
 
 	end = omp_get_wtime(); 
 
-	printf("matrix size %lld with %lld iterations in %f seconds for %.2f MBips\n", matrixSize, state.iterations, end - start, (double)(state.iterations * matrixSize) / (end-start));
 
 	if(state.cfg.benchmark){
-		printf("time: %f\n", (double)(end - start) / CLOCKS_PER_SEC);
+		printf("matrix size %lld with %lld iterations in %f seconds for %.2f MBips\n",
+				matrixSize,
+				state.iterations,
+				end - start,
+				(double)(state.iterations * matrixSize) / (end-start));
 	}
 	free_grid(&state.inArr);
 	puts("exiting");
