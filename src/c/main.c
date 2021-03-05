@@ -16,6 +16,11 @@
 #define CONDITION_MSG "Initial condition: "
 #define DEFAULT_INPUT_FILE DEFAULT_DIR DEFAULT_FILE
 #define clear() puts("\033[H\033[J")
+#define die(fmt, ...) \
+		do {fprintf(stderr, "%s:%d:%s(): " fmt, __FILE__, \
+			__LINE__, __func__, __VA_ARGS__); \
+			exit(1);} while (0)
+
 
 struct grid {
 	bool **matrix;
@@ -278,6 +283,7 @@ void print_arr(struct grid *g){
 void gen_rand_array(struct grid *g){
 	int i, j;
 	srand((unsigned int) time(0));
+	printf("generating array size %ld:%ld\n", g->x, g->y);
 	for(i = 0; i < g->x; i++){
 		for(j = 0; j < g->y ; j++){
 			g->matrix[i][j] = rand() % 2 ? false : true;
@@ -327,6 +333,7 @@ void life(struct grid * g){
 							fputs("error: x or y is not less than g->x or g->y\n", stderr);
 							exit(1);
 						}
+						/* row major */
 						if(g->matrix[x][y]){
 							count++;
 						}
@@ -381,19 +388,16 @@ void alloc_matrix(struct grid *grid, long unsigned int x, long unsigned int y){
 	grid->x = x;
 	grid->y = y;
 	if(grid->matrix || grid->newMatrix){
-		fputs("grid matrix already allocated\n", stderr);
-		exit(1);
+		die("%s","error allocating memory\n");
 	}
 	/* todo - clean this up (die(), etc) */
 	grid->matrix = malloc(x * sizeof(grid->matrix));
 	if(!grid->matrix){
-		fputs("error allocating mem\n", stderr);
-		exit(1);
+		die("error allocating memory size %ld\n",x * sizeof(grid->matrix));
 	}
 	grid->aptr1 = malloc(x * y * sizeof(grid->matrix[0]));
 	if(!grid->aptr1) {
-		fputs("error allocating mem\n", stderr);
-		exit(1);
+		die("error allocating memory size %ld\n",x * y * sizeof(grid->matrix[0]));
 	}
 	for(i = 0; i < x; i++){
 		grid->matrix[i] = grid->aptr1 + (i * (int)y);
@@ -401,17 +405,16 @@ void alloc_matrix(struct grid *grid, long unsigned int x, long unsigned int y){
 
 	grid->newMatrix = malloc(x * sizeof(grid->newMatrix));
 	if(!grid->newMatrix){
-		fputs("error allocating mem\n", stderr);
-		exit(1);
+		die("error allocating memory size %ld\n",x * sizeof(grid->matrix));
 	}
 	grid->aptr2 = malloc(x * y * sizeof(grid->newMatrix[0]));
 	if(!grid->aptr2){
-		fputs("error allocating mem\n", stderr);
-		exit(1);
+		die("error allocating memory size %ld\n",x * y * sizeof(grid->matrix[0]));
 	}
 	for(i = 0; i < x; i++){
 		grid->newMatrix[i] = grid->aptr2+ (i * (int)y);
 	}
+	printf("allocated %ldMB for each matrix, total: %ldMb\n", x*y*sizeof(grid->matrix[0])/1024/1024,x*y*sizeof(grid->matrix[0])*2/1024/1024);
 }
 
 void free_grid(struct grid *g){
