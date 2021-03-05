@@ -41,7 +41,6 @@ struct config {
 	long iter;
 	char noPrint;
 	bool benchmark;
-	bool generate;
 };
 
 struct state {
@@ -62,11 +61,10 @@ struct format {
 void print_usage(void){
 	fputs(
 		"\n -b        - benchmark - prints runtime, otherwise equivalent to -nn -s0"
-		"\n -f [file] - specify input file (default) or output file (when used with -g)"
-		"\n -g        - generate random input (see -f for more info)"
+		"\n -f [file] - specify input file (default) or output file (when used with -m)"
 		"\n -h        - help"
 		"\n -i [num]  - number of iterations to run (-1 for infinite) [default 10]"
-		"\n -m [num]  - size of matrix [default 36], ignored if used with -f"
+		"\n -m [num]  - generate random matrix size [num]"
 		"\n -n        - noprint -n will only print final iteration, -nn will not print at all"
 		"\n -s [num]  - integer sleep time (milliseconds) - [default 500]"
 		"\n -t [num]  - max number of threads to use"
@@ -86,9 +84,6 @@ void get_options(int argc, char **argv, struct config *cfg){
 				break;
 			case 'f':
 				cfg->file = optarg;
-				break;
-			case 'g':
-				cfg->generate = true;
 				break;
 			case 'h':
 				print_usage();
@@ -139,6 +134,9 @@ void pre_read_file(struct state *state){
 	const struct config *cfg = &state->cfg;
 	unsigned long count = 0;
 	int i;
+	if(state->inArr.x & state->inArr.y){
+		return;
+	}
 	if(!(state->ifp = fopen(cfg->file, "r"))){
 		perror("error opening file for read");
 		exit(1);
@@ -173,7 +171,6 @@ void read_file(struct state *state){
 	bool init = true;
 	long unsigned lineNumElems = 0;
 	long unsigned int i, j = 0;
-	pre_read_file(state);
 	if(!(state->ifp = fopen(cfg->file, "r"))){
 		perror("error opening file for read");
 		exit(1);
@@ -284,7 +281,7 @@ void print_arr(struct grid *g){
 void gen_rand_array(struct grid *g){
 	int i, j;
 	srand((unsigned int) time(0));
-	printf("generating array size %ld:%ld\n", g->x, g->y);
+	printf("generating random array size: %ld:%ld\n", g->x, g->y);
 	for(i = 0; i < g->x; i++){
 		for(j = 0; j < g->y ; j++){
 			g->matrix[i][j] = rand() % 2 ? false : true;
@@ -391,7 +388,7 @@ void loop(struct state* state, struct grid * g){
 	}
 }
 
-unsigned long long alloc_matrix(struct grid *grid, long unsigned int x, long unsigned int y){
+double alloc_matrix(struct grid *grid, long unsigned int x, long unsigned int y){
 	int i =0;
 	grid->x = x;
 	grid->y = y;
@@ -423,7 +420,7 @@ unsigned long long alloc_matrix(struct grid *grid, long unsigned int x, long uns
 		grid->newMatrix[i] = grid->aptr2+ (i * (int)y);
 	}
 	printf("allocated %ldMB for each matrix, total: %ldMB\n", x*y*sizeof(grid->matrix[0])/1024/1024,x*y*sizeof(grid->matrix[0])*2/1024/1024);
-	return sizeof(grid->matrix[0]) * x * y / 1024 / 1024;
+	return (double) sizeof(grid->matrix[0]) * x * y / 1024 / 1024;
 }
 
 void free_grid(struct grid *g){
@@ -438,17 +435,16 @@ int main(int argc, char **argv){
 	char default_file[MAX_PATH_SIZE] = DEFAULT_INPUT_FILE;
 	char msg[MSG_SIZE] = CONDITION_MSG;
 	double start, end; 
-	unsigned long long matrixSize;
+	double allocatedrMatrixSize;
 	/* defaults */
 	struct state state = {
 		.cfg = {
 			.file = default_file,
-			.generate = false,
 			.iter = DEFAULT_ITER,
 			.noPrint = 0,
 			.sleep = 500,
 			.threads = 0,
-			.matrixSize = 36,
+			.matrixSize = 0,
 		},
 		.inArr = {
 			.x = 0,
@@ -460,16 +456,18 @@ int main(int argc, char **argv){
 		.iterations = 0,
 	};
 	get_options(argc, argv, &state.cfg);
-	matrixSize = alloc_matrix(&state.inArr, state.cfg.matrixSize, state.cfg.matrixSize);
+	state.inArr.x = state.inArr.y = state.cfg.matrixSize;
+	pre_read_file(&state); /* populates state.inArr.x and state.inArr.y for allocation */
+	allocatedrMatrixSize = alloc_matrix(&state.inArr, state.inArr.x, state.inArr.y);
 	if(state.cfg.threads){
 		omp_set_num_threads((int)state.cfg.threads);
 	}
 
-	if(state.cfg.generate){
+	if(state.cfg.matrixSize){
 		gen_rand_array(&state.inArr);
 		strncat(state.message, "random generator", MSG_SIZE - strlen(CONDITION_MSG));
 		if(strcmp(DEFAULT_INPUT_FILE, state.cfg.file)){
-			/* save random data to file if -gf */
+			/* save random data to file if -mf */
 			puts("saving random matrix to file");
 			write_arr_file(&state.inArr, state.cfg.file);
 			free_grid(&state.inArr);
@@ -486,11 +484,11 @@ int main(int argc, char **argv){
 
 
 	if(state.cfg.benchmark){
-		printf("matrix size %lld with %lld iterations in %f seconds for %.2f MBips\n",
-				matrixSize,
+		printf("matrix size %fMB with %lld iterations in %f seconds for %.2f MBips\n",
+				allocatedrMatrixSize,
 				state.iterations,
 				end - start,
-				(double)(state.iterations * matrixSize) / (end-start));
+				(double)(state.iterations * allocatedrMatrixSize) / (end-start));
 	}
 	free_grid(&state.inArr);
 	puts("exiting");
