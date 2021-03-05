@@ -49,6 +49,7 @@ struct state {
 	struct grid inArr;
 	FILE *ifp;
 	char *message;
+	unsigned long long iterations;
 };
 
 /* grid formatting for csv/stdout */
@@ -375,6 +376,7 @@ void loop(struct state* state, struct grid * g){
 		if(cfg->sleep && iter){
 			usleep((useconds_t) cfg->sleep * 1000);
 		}
+		state->iterations++;
 	}
 	/* only print final value */
 	if(cfg->noPrint == 1){
@@ -383,7 +385,7 @@ void loop(struct state* state, struct grid * g){
 	}
 }
 
-void alloc_matrix(struct grid *grid, long unsigned int x, long unsigned int y){
+unsigned long long alloc_matrix(struct grid *grid, long unsigned int x, long unsigned int y){
 	int i =0;
 	grid->x = x;
 	grid->y = y;
@@ -414,7 +416,8 @@ void alloc_matrix(struct grid *grid, long unsigned int x, long unsigned int y){
 	for(i = 0; i < x; i++){
 		grid->newMatrix[i] = grid->aptr2+ (i * (int)y);
 	}
-	printf("allocated %ldMB for each matrix, total: %ldMb\n", x*y*sizeof(grid->matrix[0])/1024/1024,x*y*sizeof(grid->matrix[0])*2/1024/1024);
+	printf("allocated %ldMB for each matrix, total: %ldMB\n", x*y*sizeof(grid->matrix[0])/1024/1024,x*y*sizeof(grid->matrix[0])*2/1024/1024);
+	return sizeof(grid->matrix[0]) * x * y / 1024 / 1024;
 }
 
 void free_grid(struct grid *g){
@@ -428,6 +431,7 @@ int main(int argc, char **argv){
 	char default_file[MAX_PATH_SIZE] = DEFAULT_INPUT_FILE;
 	char msg[MSG_SIZE] = CONDITION_MSG;
 	double start, end; 
+	unsigned long long matrixSize;
 	/* defaults */
 	struct state state = {
 		.cfg = {
@@ -446,9 +450,10 @@ int main(int argc, char **argv){
 			.newMatrix = NULL,
 		},
 		.message = msg,
+		.iterations = 0,
 	};
 	get_options(argc, argv, &state.cfg);
-	alloc_matrix(&state.inArr, state.cfg.matrixSize, state.cfg.matrixSize);
+	matrixSize = alloc_matrix(&state.inArr, state.cfg.matrixSize, state.cfg.matrixSize);
 	if(state.cfg.threads){
 		omp_set_num_threads((int)state.cfg.threads);
 	}
@@ -471,7 +476,8 @@ int main(int argc, char **argv){
 	loop(&state, &state.inArr);
 
 	end = omp_get_wtime(); 
-	printf("run took %f seconds\n", end - start);
+
+	printf("matrix size %lld with %lld iterations in %f seconds for %.2f MBips\n", matrixSize, state.iterations, end - start, (double)(state.iterations * matrixSize) / (end-start));
 
 	if(state.cfg.benchmark){
 		printf("time: %f\n", (double)(end - start) / CLOCKS_PER_SEC);
