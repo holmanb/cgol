@@ -6,6 +6,7 @@
 #include <stdbool.h>
 #include <time.h>
 #include <signal.h>
+#include <setjmp.h>
 #include <omp.h>
 /* each data point takes two bytes: "1;", newline takes one */
 #define MAX_LINE_SIZE 1<<16
@@ -17,9 +18,13 @@
 #define CONDITION_MSG "Initial condition: "
 #define DEFAULT_INPUT_FILE DEFAULT_DIR DEFAULT_FILE
 #define clear() puts("\033[H\033[J")
+#define step(STEP, fmt, ...) do {printf(" [%s] " fmt, STEP, __VA_ARGS__);}while(0)
 #define die(fmt, ...) \
-		do {fprintf(stderr, "%s:%d:%s(): " fmt, __FILE__, \
-			__LINE__, __func__, __VA_ARGS__); \
+		do {fprintf(stderr, "%s:%d:%s(): " fmt, \
+			__FILE__, \
+			__LINE__, \
+			__func__, \
+			__VA_ARGS__); \
 			exit(1);} while (0)
 
 struct grid {
@@ -61,7 +66,7 @@ struct format {
 void print_usage(void){
 	fputs(
 		"\n -b        - benchmark - prints runtime, otherwise equivalent to -nn -s0"
-		"\n -f [file] - specify input file (default) or output file (when used with -m)"
+		"\n -f [file] - file for input (or output when used with -m) default directory is " DEFAULT_DIR
 		"\n -h        - help"
 		"\n -i [num]  - number of iterations to run (-1 for infinite) [default 10]"
 		"\n -m [num]  - generate random matrix size [num]"
@@ -149,7 +154,7 @@ void pre_read_file(struct state *state){
 		}else if(line[i] == '0' || line[i] == '1'){
 			count++;
 		}else{
-			fprintf(stderr, "error parsing file %s: found char [%c]\n",
+			die("error parsing file %s: found char [%c]\n",
 				cfg->file,
 				line[i]);
 		}
@@ -166,6 +171,7 @@ void read_file(struct state *state){
 	bool init = true;
 	long unsigned lineNumElems = 0;
 	long unsigned int i, j = 0;
+	step("Reading file", "%s\n", cfg->file);
 	if(!(state->ifp = fopen(cfg->file, "r"))){
 		perror("error opening file for read");
 		exit(1);
@@ -247,12 +253,12 @@ void write_arr_file(struct grid *g, char *file){
 	};
 	strncpy(path, DEFAULT_DIR, MAX_PATH_SIZE);
 	strncat(path, file, MAX_PATH_SIZE - strlen(DEFAULT_DIR));
+	step("Writing file", "%s\n", path);
 
 	if(!(ofp = fopen(path, "w"))){
 		perror("error opening file for write");
 		exit(1);
 	}
-	printf("Array size: %ld:%ld \nFile %s\n", g->x, g->y, path);
 	write_arr(g, ofp, &fmt);
 	fflush(ofp);
 	fclose(ofp);
@@ -260,7 +266,6 @@ void write_arr_file(struct grid *g, char *file){
 
 /* write to stdout*/
 void print_arr(struct grid *g){
-	printf("array size: %ld:%ld\n", g->x, g->y);
 	char delim[] = "  ";
 	struct format f = {
 		.liveChar = '1',
@@ -273,7 +278,7 @@ void print_arr(struct grid *g){
 void gen_rand_array(struct grid *g){
 	int i, j;
 	srand((unsigned int) time(0));
-	printf("generating random array size: %ld:%ld\n", g->x, g->y);
+	step("Generating", "array size: %ld:%ld\n", g->x, g->y);
 	for(i = 0; i < g->x; i++){
 		for(j = 0; j < g->y ; j++){
 			g->matrix[i][j] = rand() % 2 ? false : true;
@@ -347,15 +352,18 @@ void life(struct grid * g){
 	g->newMatrix = tmp; /* old matrix will get memset at begining of next life()*/
 }
 
-volatile bool quitExecution = false;
+jmp_buf __myExit;
+volatile int quitExecution = 0;
 void sigInt(int null){
-	quitExecution = true;
+	quitExecution++;
+	longjmp(__myExit, 1);
 }
 
 void loop(struct state* state, struct grid * g){
 	const struct config * cfg = &state->cfg;
 	long int iter = cfg->iter;
 	signal(SIGINT, sigInt);
+	step("Looping","iterations: %ld\n",state->cfg.iter);
 	while(iter && !quitExecution){
 		if(!cfg->noPrint){
 			render(g);
@@ -385,6 +393,9 @@ void loop(struct state* state, struct grid * g){
 
 double alloc_matrix(struct grid *grid, long unsigned int x, long unsigned int y){
 	int i =0;
+	step("Allocating", "%fMB/matrix - total: %fMB\n",
+			(double)x * (double)y * (double)sizeof(grid->matrix[0])/1024/1024,
+			(double)x * (double)y * (double)sizeof(grid->matrix[0])*2/1024/1024);
 	grid->x = x;
 	grid->y = y;
 	if(grid->matrix || grid->newMatrix){
@@ -413,7 +424,6 @@ double alloc_matrix(struct grid *grid, long unsigned int x, long unsigned int y)
 	for(i = 0; i < x; i++){
 		grid->newMatrix[i] = grid->aptr2+ (i * (int)y);
 	}
-	printf("allocated %ldMB for each matrix, total: %ldMB\n", x*y*sizeof(grid->matrix[0])/1024/1024,x*y*sizeof(grid->matrix[0])*2/1024/1024);
 	return (double) sizeof(grid->matrix[0]) * (double) x * (double)y / 1024 / 1024;
 }
 
@@ -429,7 +439,7 @@ int main(int argc, char **argv){
 	char default_file[MAX_PATH_SIZE] = DEFAULT_INPUT_FILE;
 	char msg[MSG_SIZE] = CONDITION_MSG;
 	double start, end; 
-	double allocatedrMatrixSize;
+	double allocatedMatrixSize;
 	/* defaults */
 	struct state state = {
 		.cfg = {
@@ -452,7 +462,11 @@ int main(int argc, char **argv){
 	get_options(argc, argv, &state.cfg);
 	state.inArr.x = state.inArr.y = state.cfg.matrixSize;
 	pre_read_file(&state); /* populates state.inArr.x and state.inArr.y for allocation */
-	allocatedrMatrixSize = alloc_matrix(&state.inArr, state.inArr.x, state.inArr.y);
+	allocatedMatrixSize = alloc_matrix(&state.inArr, state.inArr.x, state.inArr.y);
+	if(setjmp(__myExit)){
+		step("\b\b\b\b [Signal Received","sigint exiting%s\n","");
+		exit(0);
+	}
 	if(state.cfg.threads){
 		omp_set_num_threads((int)state.cfg.threads);
 	}
@@ -462,7 +476,6 @@ int main(int argc, char **argv){
 		strncat(state.message, "random generator", MSG_SIZE - strlen(CONDITION_MSG));
 		if(strcmp(DEFAULT_INPUT_FILE, state.cfg.file)){
 			/* save random data to file if -mf */
-			puts("saving random matrix to file");
 			write_arr_file(&state.inArr, state.cfg.file);
 			free_grid(&state.inArr);
 			exit(0);
@@ -478,13 +491,16 @@ int main(int argc, char **argv){
 
 
 	if(state.cfg.benchmark){
-		printf("matrix size %fMB with %lld iterations in %f seconds for %.2f MBips (Megabyte * iterations / second)\n",
-				allocatedrMatrixSize,
+		step("Results", "matrix size %fMB " \
+				"with %lld iterations " \
+				"in %f seconds " \
+				"for %.2f MBips (Megabyte * iterations / second)\n",
+				allocatedMatrixSize,
 				state.iterations,
 				end - start,
-				(double)state.iterations * allocatedrMatrixSize / (end-start));
+				(double)state.iterations * allocatedMatrixSize / (end-start));
 	}
+	step("Cleaning up", "%s\n", "");
 	free_grid(&state.inArr);
-	puts("exiting");
 	return 0;
 }
