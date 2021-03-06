@@ -26,6 +26,15 @@
 			__func__, \
 			__VA_ARGS__); \
 			exit(1);} while (0)
+#define BITWIDTH sizeof(bool)
+//#define GetKdiv(k)     (k / BITWIDTH)
+//#define GetKmod(k)     (k % BITWIDTH)
+//#define SetBit(Arr, j, k_div, k_mod)     ( Arr[j][k_div] |=  (1 << k_mod) )
+//#define GetBit(Arr, j, k_div, k_mod)     ( Arr[j][k_div] &   (1 << k_mod) )
+//#define ClearBit(Arr, j, k_div, k_mod)   ( Arr[j][k_div] &= ~(1 << k_mod) )
+#define SetBit(Arr, j, k)     ( Arr[j][(k / BITWIDTH)] |=  (1 << (k % BITWIDTH)) )
+#define GetBit(Arr, j, k)     ( Arr[j][(k / BITWIDTH)] &   (1 << (k % BITWIDTH)) )
+#define ClearBit(Arr, j, k)   ( Arr[j][(k / BITWIDTH)] &= ~(1 << (k % BITWIDTH)) )
 
 struct grid {
 	bool **matrix;
@@ -34,18 +43,17 @@ struct grid {
 	bool *aptr2;
 	unsigned long int x;
 	unsigned long int y;
-	/* for memory accounting */
 };
 
 /* user generated values - used immutably after get_opt */
 struct config {
 	char *file;
+	bool benchmark;
+	char noPrint;
+	long iter;
 	unsigned long sleep;
 	unsigned long matrixSize;
 	unsigned long threads;
-	long iter;
-	char noPrint;
-	bool benchmark;
 };
 
 struct state {
@@ -78,8 +86,8 @@ void print_usage(void){
 }
 
 void get_options(int argc, char **argv, struct config *cfg){
-	int c=0;
-	char *ptr=NULL;
+	int c = 0;
+	char *ptr = NULL;
 	while ((c = getopt (argc, argv, "bf:ghi:m:ns:t:")) != -1){
 		switch (c){
 			case 'b':
@@ -131,10 +139,10 @@ void get_options(int argc, char **argv, struct config *cfg){
 
 /* get size for matrix initialization */
 void pre_read_file(struct state *state){
-	char line[MAX_LINE_SIZE];
+	int i;
 	const struct config *cfg = &state->cfg;
 	unsigned long count = 0;
-	int i;
+	char line[MAX_LINE_SIZE];
 	if(state->inArr.x & state->inArr.y){
 		return;
 	}
@@ -142,8 +150,6 @@ void pre_read_file(struct state *state){
 		perror("error opening file for read");
 		exit(1);
 	}
-
-	/* csv parsing code */
 	if(!fgets(line, MAX_LINE_SIZE, state->ifp)){
 		die("error parsing file [%s]\n",
 			cfg->file);
@@ -165,10 +171,10 @@ void pre_read_file(struct state *state){
 }
 
 void read_file(struct state *state){
-	char line[MAX_LINE_SIZE];
-	const struct config *cfg = &state->cfg;
 	char *tok;
 	bool init = true;
+	char line[MAX_LINE_SIZE];
+	const struct config *cfg = &state->cfg;
 	long unsigned lineNumElems = 0;
 	long unsigned int i, j = 0;
 	step("Reading file", "%s\n", cfg->file);
@@ -176,7 +182,6 @@ void read_file(struct state *state){
 		perror("error opening file for read");
 		exit(1);
 	}
-
 	/* csv parsing code */
 	while(fgets(line, MAX_LINE_SIZE, state->ifp)){
 		if(!strcmp(line, "\n")){
@@ -235,7 +240,6 @@ void write_arr(struct grid *g, FILE * f, struct format *fmt){
 			if(j + 1 < g->y){
 				fputs(fmt->delim, f);
 			}
-
 		}
 		putc('\n', f);
 	}
@@ -254,7 +258,6 @@ void write_arr_file(struct grid *g, char *file){
 	strncpy(path, DEFAULT_DIR, MAX_PATH_SIZE);
 	strncat(path, file, MAX_PATH_SIZE - strlen(DEFAULT_DIR));
 	step("Writing file", "%s\n", path);
-
 	if(!(ofp = fopen(path, "w"))){
 		perror("error opening file for write");
 		exit(1);
@@ -293,23 +296,20 @@ void render(struct grid *g){
 
 /* cgol */
 void life(struct grid * g){
-	unsigned long i, j, count, x, y, t;
+	unsigned long i, j, count, x, y, t; //, kMod, kDiv;
 	int ip, jp;
 	bool **tmp; /* for swap */
+	init_arr(g); /* clear matrix */
 
-	/* clear matrix */
-	init_arr(g);
-
-	/* each cell in the matrix */
 	#pragma omp parallel for private(x, y, jp, ip)
 	for(i = 0; i < g->x; i++){
 		for(j = 0; j < g->y; j++){
+			//kMod = GetKmod(j);
+			//kDiv = GetKdiv(j);
 			count = 0;
-
 			/* each 3x3 grid around that cell */
 			for(ip=-1; ip<2; ip++){
 				for(jp=-1; jp<2; jp++){
-
 					/* skip 0,0 */
 					if(jp|ip){
 						/* wrap edges */
@@ -322,7 +322,7 @@ void life(struct grid * g){
 						}
 						if(!j && jp<0){
 							y = g->y - 1;
-						}else if((t = j + (unsigned long) jp) >= g->y){
+						}else if((t = j + (unsigned long)jp) >= g->y){
 							y = 0;
 						}else{
 							y = t;
@@ -332,7 +332,7 @@ void life(struct grid * g){
 							die("%s", "error: x or y is not less than g->x or g->y\n");
 						}
 						/* row major */
-						if(g->matrix[x][y]){
+						if(GetBit(g->matrix, x, y)){
 							count++;
 						}
 					}
@@ -340,10 +340,10 @@ void life(struct grid * g){
 			}
 			if(count == 3){
 				/* three neighbors: live/born */
-				g->newMatrix[i][j] = true;
-			}else if(count == 2 && g->matrix[i][j]){
+				SetBit(g->newMatrix, i, j);
+			}else if(count == 2 && GetBit(g->matrix, i, j)){
 				/* two neighbors: live */
-				g->newMatrix[i][j] = true;
+				SetBit(g->newMatrix, i, j);
 			}
 		}
 	}
@@ -397,8 +397,8 @@ void loop(struct state* state, struct grid * g){
 double alloc_matrix(struct grid *grid, long unsigned int x, long unsigned int y){
 	int i =0;
 	step("Allocating", "%fMB/matrix - total: %fMB\n",
-			(double)x * (double)y * (double)sizeof(grid->matrix[0])/1024/1024,
-			(double)x * (double)y * (double)sizeof(grid->matrix[0])*2/1024/1024);
+			(double)x * (double)y * (double)sizeof(grid->matrix[0])/1024/1024 / (BITWIDTH + 1),
+			(double)x * (double)y * (double)sizeof(grid->matrix[0])*2/1024/1024 / (BITWIDTH + 1));
 	grid->x = x;
 	grid->y = y;
 	if(grid->matrix || grid->newMatrix){
@@ -406,28 +406,27 @@ double alloc_matrix(struct grid *grid, long unsigned int x, long unsigned int y)
 	}
 	grid->matrix = malloc(x * sizeof(grid->matrix));
 	if(!grid->matrix){
-		die("error allocating memory size %ld\n",x * sizeof(grid->matrix));
+		die("error allocating memory size %ld\n", x * sizeof(grid->matrix));
 	}
-	grid->aptr1 = malloc(x * y * sizeof(grid->matrix[0]));
+	grid->aptr1 = malloc(x * y * sizeof(grid->matrix[0]) / (BITWIDTH) + 1);
 	if(!grid->aptr1) {
-		die("error allocating memory size %ld\n",x * y * sizeof(grid->matrix[0]));
+		die("error allocating memory size %ld\n", x * y * sizeof(grid->matrix[0]) / (BITWIDTH + 1));
 	}
 	for(i = 0; i < x; i++){
 		grid->matrix[i] = grid->aptr1 + (i * (int)y);
 	}
-
 	grid->newMatrix = malloc(x * sizeof(grid->newMatrix));
 	if(!grid->newMatrix){
-		die("error allocating memory size %ld\n",x * sizeof(grid->matrix));
+		die("error allocating memory size %ld\n", x * sizeof(grid->matrix));
 	}
-	grid->aptr2 = malloc(x * y * sizeof(grid->newMatrix[0]));
+	grid->aptr2 = malloc(x * y * sizeof(grid->newMatrix[0]) / (BITWIDTH + 1));
 	if(!grid->aptr2){
-		die("error allocating memory size %ld\n",x * y * sizeof(grid->matrix[0]));
+		die("error allocating memory size %ld\n", x * y * sizeof(grid->matrix[0]) / (BITWIDTH + 1));
 	}
 	for(i = 0; i < x; i++){
 		grid->newMatrix[i] = grid->aptr2+ (i * (int)y);
 	}
-	return (double) sizeof(grid->matrix[0]) * (double) x * (double)y / 1024 / 1024;
+	return (double) sizeof(grid->matrix[0]) * (double) x * (double)y / 1024 / 1024 / (BITWIDTH + 1);
 }
 
 void free_grid(struct grid *g){
@@ -469,7 +468,6 @@ int main(int argc, char **argv){
 	if(state.cfg.threads){
 		omp_set_num_threads((int)state.cfg.threads);
 	}
-
 	if(state.cfg.matrixSize){
 		gen_rand_array(&state.inArr);
 		strncat(state.message, "random generator", MSG_SIZE - strlen(CONDITION_MSG));
@@ -485,19 +483,17 @@ int main(int argc, char **argv){
 	}
 	start = omp_get_wtime(); 
 	loop(&state, &state.inArr);
-
 	end = omp_get_wtime(); 
-
 
 	if(state.cfg.benchmark){
 		step("Results", "matrix size %fMB " \
-				"with %lld iterations " \
-				"in %f seconds " \
-				"for %.2f MBips (Megabyte * iterations / second)\n",
-				allocatedMatrixSize,
-				state.iterations,
-				end - start,
-				(double)state.iterations * allocatedMatrixSize / (end-start));
+			"with %lld iterations " \
+			"in %f seconds " \
+			"for %.2f MBips (Megabyte * iterations / second)\n",
+			allocatedMatrixSize,
+			state.iterations,
+			end - start,
+			(double)state.iterations * allocatedMatrixSize / (end-start));
 	}
 	step("Cleaning up", "%s\n", "");
 	free_grid(&state.inArr);
