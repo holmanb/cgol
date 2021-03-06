@@ -92,15 +92,13 @@ void get_options(int argc, char **argv, struct config *cfg){
 			case 'i':
 				cfg->iter = strtol(optarg, &ptr, 10);
 				if(*ptr){
-					fputs("error parsing number", stderr);
-					exit(1);
+					die("%s", "error parsing number");
 				}
 				break;
 			case 'm':
 				cfg->matrixSize = strtoul(optarg, &ptr, 10);
 				if(*ptr){
-					fputs("error parsing number", stderr);
-					exit(1);
+					die("%s", "error parsing number");
 				}
 				break;
 			case 'n':
@@ -109,21 +107,19 @@ void get_options(int argc, char **argv, struct config *cfg){
 			case 's':
 				cfg->sleep = strtoul(optarg, &ptr, 10);
 				if(*ptr){
-					fputs("error parsing number", stderr);
-					exit(1);
+					die("%s", "error parsing number");
 				}
 				break;
 			case 't':
 				cfg->threads = strtoul(optarg, &ptr, 10);
 				if(*ptr){
-					fputs("error parsing number", stderr);
-					exit(1);
+					die("%s", "error parsing number");
 				}
 				break;
 			default:
 				fputs("invalid usage\n", stderr);
 				print_usage();
-				exit(1);
+				die("%s","");
 		}
 	}
 }
@@ -144,9 +140,8 @@ void pre_read_file(struct state *state){
 
 	/* csv parsing code */
 	if(!fgets(line, MAX_LINE_SIZE, state->ifp)){
-		fprintf(stderr, "error parsing file [%s]\n",
+		die("error parsing file [%s]\n",
 			cfg->file);
-		exit(1);
 	}
 	for(i = 0; line[i] != '\n'; i++){
 		if(line[i] == ';') {
@@ -190,10 +185,9 @@ void read_file(struct state *state){
 			}else if(!strcmp(tok, "\n")){
 				continue;
 			}else{
-				fprintf(stderr, "error parsing file %s: found string [%s]\n",
+				die("error parsing file %s: found string [%s]\n",
 					cfg->file,
 					tok);
-				exit(1);
 			}
 			i += 1;
 		}
@@ -204,14 +198,12 @@ void read_file(struct state *state){
 			init = false;
 		}else{
 			if(lineNumElems != i){
-				fprintf(stderr,
-					"error parsing, "
+				die("error parsing, "
 					"all lines must have same number of columns\n"
 					"lineNumElems=%ld state->i=%ld line:\n[%s]\n",
 					lineNumElems,
 					i,
 					line);
-				exit(1);
 			}
 		}
 	}
@@ -328,8 +320,7 @@ void life(struct grid * g){
 							y = ((int)g->y - 1);
 						}
 						if(!(x < g->x && y < g->y)){
-							fputs("error: x or y is not less than g->x or g->y\n", stderr);
-							exit(1);
+							die("%s", "error: x or y is not less than g->x or g->y\n");
 						}
 						/* row major */
 						if(g->matrix[x][y]){
@@ -420,7 +411,7 @@ double alloc_matrix(struct grid *grid, long unsigned int x, long unsigned int y)
 		grid->newMatrix[i] = grid->aptr2+ (i * (int)y);
 	}
 	printf("allocated %ldMB for each matrix, total: %ldMB\n", x*y*sizeof(grid->matrix[0])/1024/1024,x*y*sizeof(grid->matrix[0])*2/1024/1024);
-	return (double) sizeof(grid->matrix[0]) * x * y / 1024 / 1024;
+	return (double) sizeof(grid->matrix[0]) * (double) x * (double)y / 1024 / 1024;
 }
 
 void free_grid(struct grid *g){
@@ -484,11 +475,11 @@ int main(int argc, char **argv){
 
 
 	if(state.cfg.benchmark){
-		printf("matrix size %fMB with %lld iterations in %f seconds for %.2f MBips\n",
+		printf("matrix size %fMB with %lld iterations in %f seconds for %.2f MBips (Megabyte * iterations / second)\n",
 				allocatedrMatrixSize,
 				state.iterations,
 				end - start,
-				(double)(state.iterations * allocatedrMatrixSize) / (end-start));
+				(double)state.iterations * allocatedrMatrixSize / (end-start));
 	}
 	free_grid(&state.inArr);
 	puts("exiting");
