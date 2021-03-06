@@ -288,8 +288,9 @@ void render(struct grid *g){
 
 /* cgol */
 void life(struct grid * g){
-	int x, y, i, j, ip, jp, count;
-	bool ** tmp; /* for swap */
+	unsigned long i, j, count, x, y, t;
+	int ip, jp;
+	bool **tmp; /* for swap */
 
 	/* clear matrix */
 	init_arr(g);
@@ -307,18 +308,21 @@ void life(struct grid * g){
 					/* skip 0,0 */
 					if(jp|ip){
 						/* wrap edges */
-						x = (i + ip);
-						y = (j + jp);
-						if(x == g->x){
+						if(!i && ip<0){
+							x = g->x - 1;
+						}else if((t = i + (unsigned long)ip) >= g->x){
 							x = 0;
-						} else if(x < 0){
-							x = ((int)g->x - 1);
+						}else{
+							x = t;
 						}
-						if(y == g->y){
+						if(!j && jp<0){
+							y = g->y - 1;
+						}else if((t = j + (unsigned long) jp) >= g->y){
 							y = 0;
-						}else if(y < 0){
-							y = ((int)g->y - 1);
+						}else{
+							y = t;
 						}
+
 						if(!(x < g->x && y < g->y)){
 							die("%s", "error: x or y is not less than g->x or g->y\n");
 						}
@@ -386,7 +390,6 @@ double alloc_matrix(struct grid *grid, long unsigned int x, long unsigned int y)
 	if(grid->matrix || grid->newMatrix){
 		die("%s","error allocating memory\n");
 	}
-	/* todo - clean this up (die(), etc) */
 	grid->matrix = malloc(x * sizeof(grid->matrix));
 	if(!grid->matrix){
 		die("error allocating memory size %ld\n",x * sizeof(grid->matrix));
