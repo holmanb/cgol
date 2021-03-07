@@ -493,7 +493,7 @@ int main(int argc, char **argv){
 			allocatedMatrixSize,
 			state.iterations,
 			end - start,
-			(double)state.iterations * allocatedMatrixSize / (end-start));
+			(double)state.iterations * (double) state.inArr.x * (double)state.inArr.y / (end-start) / 1024 / 1024);
 	}
 	step("Cleaning up", "%s\n", "");
 	free_grid(&state.inArr);
