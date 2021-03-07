@@ -458,6 +458,10 @@ int main(int argc, char **argv){
 	state.inArr.x = state.inArr.y = state.cfg.matrixSize;
 	pre_read_file(&state); /* populates state.inArr.x and state.inArr.y for allocation */
 	allocatedMatrixSize = alloc_matrix(&state.inArr, state.inArr.x, state.inArr.y);
+	if(setjmp(__myExit)){
+		printStep("\b\b\b\b [Signal Received","sigint exiting%s\n","");
+		exit(0);
+	}
 	if(state.cfg.threads){
 		omp_set_num_threads((int)state.cfg.threads);
 	}
