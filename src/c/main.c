@@ -13,10 +13,10 @@
 #define MAX_PATH_SIZE 512
 #define DEFAULT_ITER 10
 #define MSG_SIZE 512
-#define DEFAULT_DIR "../../data/"
+#define DEFAULT_DIR "../../data"
 #define DEFAULT_FILE "default"
+#define DEFAULT_FILEPATH DEFAULT_DIR "/" DEFAULT_FILE
 #define CONDITION_MSG "Initial condition: "
-#define DEFAULT_INPUT_FILE DEFAULT_DIR DEFAULT_FILE
 #define clear() puts("\033[H\033[J")
 #define printStep(STEP, fmt, ...) do {printf(" [%s] " fmt, STEP, __VA_ARGS__);}while(0)
 #define die(fmt, ...) \
@@ -45,6 +45,7 @@ struct grid {
 struct config {
 	char *file;
 	bool benchmark;
+	char *directory;
 	char noPrint;
 	long iter;
 	unsigned long sleep;
@@ -54,6 +55,7 @@ struct config {
 
 struct state {
 	struct config cfg;
+	char filePath[MAX_PATH_SIZE];
 	struct grid inArr;
 	FILE *ifp;
 	char *message;
@@ -70,6 +72,7 @@ struct format {
 void print_usage(void){
 	fputs(
 		"\n -b        - benchmark - prints runtime, otherwise equivalent to -nn -s0"
+		"\n -d        - directory - specify input/output file dir - default directory is " DEFAULT_DIR
 		"\n -f [file] - file for input (or output when used with -m) default directory is " DEFAULT_DIR
 		"\n -h        - help"
 		"\n -i [num]  - number of iterations to run (-1 for infinite) [default 10]"
@@ -84,12 +87,15 @@ void print_usage(void){
 void get_options(int argc, char **argv, struct config *cfg){
 	int c = 0;
 	char *ptr = NULL;
-	while ((c = getopt (argc, argv, "bf:ghi:m:ns:t:")) != -1){
+	while ((c = getopt (argc, argv, "bd:f:ghi:m:ns:t:")) != -1){
 		switch (c){
 			case 'b':
 				cfg->benchmark = true;
 				cfg->noPrint = 2;
 				cfg->sleep = 0;
+				break;
+			case 'd':
+				cfg->directory = optarg;
 				break;
 			case 'f':
 				cfg->file = optarg;
@@ -142,8 +148,10 @@ void pre_read_file(struct state *state){
 	if(state->inArr.x & state->inArr.y){
 		return;
 	}
-	if(!(state->ifp = fopen(cfg->file, "r"))){
+	if(!(state->ifp = fopen(state->filePath, "r"))){
 		perror("error opening file for read");
+		fputs(state->filePath, stderr);
+		fputc('\n', stderr);
 		exit(1);
 	}
 	if(!fgets(line, MAX_LINE_SIZE, state->ifp)){
@@ -174,8 +182,10 @@ void read_file(struct state *state){
 	long unsigned lineNumElems = 0;
 	long unsigned int i = 0, j = 0;
 	printStep("Reading file", "%s\n", cfg->file);
-	if(!(state->ifp = fopen(cfg->file, "r"))){
+	if(!(state->ifp = fopen(state->filePath, "r"))){
 		perror("error opening file for read");
+		fputs(cfg->file, stderr);
+		fputc('\n', stderr);
 		exit(1);
 	}
 	/* csv parsing code */
@@ -244,17 +254,14 @@ void write_arr(struct grid *g, FILE * f, struct format *fmt){
 /* write to file*/
 void write_arr_file(struct grid *g, char *file){
 	FILE * ofp;
-	char path[MAX_PATH_SIZE];
 	char delim[2] = ";";
 	struct format fmt = {
 		.liveChar = '1',
 		.deadChar = '0',
 		.delim = delim,
 	};
-	strncpy(path, DEFAULT_DIR, MAX_PATH_SIZE);
-	strncat(path, file, MAX_PATH_SIZE - strlen(DEFAULT_DIR));
-	printStep("Writing file", "%s\n", path);
-	if(!(ofp = fopen(path, "w"))){
+	printStep("Writing file", "%s\n", file);
+	if(!(ofp = fopen(file, "w"))){
 		perror("error opening file for write");
 		exit(1);
 	}
@@ -431,14 +438,14 @@ void free_grid(struct grid *g){
 
 
 int main(int argc, char **argv){
-	char default_file[MAX_PATH_SIZE] = DEFAULT_INPUT_FILE;
 	char msg[MSG_SIZE] = CONDITION_MSG;
 	double start, end; 
 	double allocatedMatrixSize;
 	/* defaults */
 	struct state state = {
 		.cfg = {
-			.file = default_file,
+			.file = DEFAULT_FILE,
+			.directory = DEFAULT_DIR,
 			.iter = DEFAULT_ITER,
 			.noPrint = 0,
 			.sleep = 500,
@@ -455,6 +462,10 @@ int main(int argc, char **argv){
 		.iterations = 0,
 	};
 	get_options(argc, argv, &state.cfg);
+	if(strlen(state.cfg.file) + strlen(state.cfg.directory) + 2 > MAX_PATH_SIZE) die("%s", "input file size too large\n");
+	strcpy(state.filePath, state.cfg.directory);
+	strcat(state.filePath, "/");
+	strcat(state.filePath, state.cfg.file);
 	state.inArr.x = state.inArr.y = state.cfg.matrixSize;
 	pre_read_file(&state); /* populates state.inArr.x and state.inArr.y for allocation */
 	allocatedMatrixSize = alloc_matrix(&state.inArr, state.inArr.x, state.inArr.y);
@@ -468,14 +479,14 @@ int main(int argc, char **argv){
 	if(state.cfg.matrixSize){
 		gen_rand_array(&state.inArr);
 		strncat(state.message, "random generator", MSG_SIZE - strlen(CONDITION_MSG));
-		if(strcmp(DEFAULT_INPUT_FILE, state.cfg.file)){
+		if(strcmp(DEFAULT_FILEPATH, state.filePath)){
 			/* save random data to file if -mf */
-			write_arr_file(&state.inArr, state.cfg.file);
+			write_arr_file(&state.inArr, state.filePath);
 			free_grid(&state.inArr);
 			exit(0);
 		}
 	}else{
-		strncat(state.message, state.cfg.file, MAX_PATH_SIZE);
+		strncat(state.message, state.filePath, MAX_PATH_SIZE);
 		read_file(&state);
 	}
 	start = omp_get_wtime(); 
