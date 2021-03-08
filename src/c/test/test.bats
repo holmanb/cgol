@@ -2,10 +2,10 @@
 #!/usr/bin/bash
 #
 # verifies that inputs produce expected outputs
-
-EXPECTED=expected/test_out
-RECEIVED=received/test_out
-EXE="../cgol -ns0 -d ../../../data -f default"
+EXPECTED="$BATS_TEST_DIRNAME/expected/test_out"
+RECEIVED="$BATS_TEST_DIRNAME/received/test_out"
+DIR="$1"
+EXE="$BATS_TEST_DIRNAME/../cgol -ns0 -d $BATS_TEST_DIRNAME/../../../data -f default"
 
 function setup(){
 	mkdir -p "$RECEIVED/$FILE"
