@@ -20,6 +20,7 @@ jobs:
         run: cd src/c/ && meson build
 
       - name: Build & Test
-        run: src/c/test/test.bats
+        run: |
+          BIN=/home/bholman/workspace/cgol/src/c/build/cgol src/c/test/test.bats
 
 

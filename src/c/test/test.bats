@@ -7,8 +7,15 @@
 #
 EXPECTED="$BATS_TEST_DIRNAME/expected/test_out"
 RECEIVED="$BATS_TEST_DIRNAME/received/test_out"
-DIR="$1"
-EXE="$BATS_TEST_DIRNAME/../build/cgol -ns0 -d $BATS_TEST_DIRNAME/../../../data -f default"
+if [ "$BIN" == "" ];then
+	BIN="$BATS_TEST_DIRNAME/../build/cgol"
+fi
+ARGS=" -ns0 -d $BATS_TEST_DIRNAME/../../../data -f default"
+EXE="$BIN $ARGS"
+
+if [ "" != "$1" ];then
+	EXE="$1"
+fi
 
 function setup(){
 	mkdir -p "$RECEIVED/$FILE"
@@ -16,8 +23,8 @@ function setup(){
 
 function expected(){
 	FILE="i$1"
-	ARGS="-$FILE"
-	$EXE $ARGS > "$RECEIVED/$FILE"
+	ARG="-$FILE"
+	$EXE $ARG > "$RECEIVED/$FILE"
 	echo "received $RECEIVED/$FILE"
 	echo "expected $EXPECTED/$FILE"
 	diff "$EXPECTED/$FILE" "$RECEIVED/$FILE"
