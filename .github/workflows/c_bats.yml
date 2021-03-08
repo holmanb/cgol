@@ -21,6 +21,6 @@ jobs:
 
       - name: Build & Test
         run: |
-          BIN="$(pwd)/cgol/src/c/build/cgol" src/c/test/test.bats
+          cd src/c && BIN="$(pwd)/build/cgol" src/c/test/test.bats
 
 
