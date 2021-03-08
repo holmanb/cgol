@@ -17,7 +17,10 @@ jobs:
           sudo apt-get update
           sudo apt-get install gcc meson libomp-dev bats
       - name: Setup
-        run: cd src/c/ && meson build
+        run: |
+          cd src/c/ 
+          meson build
+          ninja -C build
 
       - name: Build & Test
         run: |
