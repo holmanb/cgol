@@ -25,3 +25,13 @@ function teardown(){
 	cat "$EXPECTED/$FILE"
 	[[ "" = "$(diff $EXPECTED/$FILE $RECEIVED/$FILE)" ]]
 }
+@test "using default file, -i1024" {
+	FILE=i1024
+	ARGS="-$FILE"
+	$EXE $ARGS > "$RECEIVED/$FILE"
+	echo "received $RECEIVED/$FILE"
+	echo "expected $EXPECTED/$FILE"
+	diff "$EXPECTED/$FILE" "$RECEIVED/$FILE"
+	cat "$EXPECTED/$FILE"
+	[[ "" = "$(diff $EXPECTED/$FILE $RECEIVED/$FILE)" ]]
+}
