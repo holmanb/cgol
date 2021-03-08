@@ -2,10 +2,13 @@
 #!/usr/bin/bash
 #
 # verifies that inputs produce expected outputs
+#
+# ./cgol -i10 -s0 -n > test/expected/test_out/i10
+#
 EXPECTED="$BATS_TEST_DIRNAME/expected/test_out"
 RECEIVED="$BATS_TEST_DIRNAME/received/test_out"
 DIR="$1"
-EXE="$BATS_TEST_DIRNAME/../cgol -ns0 -d $BATS_TEST_DIRNAME/../../../data -f default"
+EXE="$BATS_TEST_DIRNAME/../build/cgol -ns0 -d $BATS_TEST_DIRNAME/../../../data -f default"
 
 function setup(){
 	mkdir -p "$RECEIVED/$FILE"
