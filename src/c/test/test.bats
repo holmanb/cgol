@@ -2,17 +2,13 @@
 #!/usr/bin/bash
 #
 # verifies that inputs produce expected outputs
-#set -x
 
-EXPECTED=test/expected/test_out
-RECEIVED=test/received/test_out
-EXE="./cgol -ns0 "
+EXPECTED=expected/test_out
+RECEIVED=received/test_out
+EXE="../cgol -ns0 -d ../../../data -f default"
 
 function setup(){
 	mkdir -p "$RECEIVED/$FILE"
-}
-function teardown(){
-	rm -rf "$RECEIVED/$FILE"
 }
 
 @test "using default file, -i10" {
