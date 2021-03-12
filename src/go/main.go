@@ -3,11 +3,27 @@ package main
 import (
 	"encoding/csv"
 	"fmt"
+	"flag"
 	"os"
 	"sync"
 	"strings"
 	"time"
 )
+
+var config = &struct {
+	file, directory string
+	benchmark, noPrint bool
+	iter int
+	sleep, matrixSize uint
+}{
+	file: "default",
+	directory: "../../data/",
+	benchmark: false,
+	noPrint: false,
+	iter: 10,
+	sleep: 100,
+	matrixSize: 0,
+}
 
 type format struct {
 	live, dead string
@@ -135,13 +151,36 @@ func (matrix *Matrix) Cgol() {
 }
 
 func main() {
+	flag.StringVar(&config.file, "f", config.file, "input file to use")
+	flag.StringVar(&config.directory, "d", config.directory, "input directory to use")
+	flag.BoolVar(&config.benchmark, "b", config.benchmark, "benchmark defaults")
+	flag.BoolVar(&config.noPrint, "n", config.noPrint, "no print - only print the final result")
+	flag.IntVar(&config.iter, "i", config.iter, "iterations to run")
+	flag.UintVar(&config.sleep, "s", config.sleep, "sleep time betweeen iterations")
+	flag.UintVar(&config.matrixSize, "m", config.matrixSize, "size of matrix to generate (not yet implemented)")
+	flag.Parse()
+	if config.matrixSize != 0{
+		panic("matrixSize random generation logic is not yet implemented")
+	}
+
 	f := format{delim: ';', live: "1", dead: "0"}
 	matrix := Matrix{}
-	matrix.ReadFile(defaultFile, f)
-	for {
-		clearScreen()
-		fmt.Println(matrix)
+	matrix.ReadFile(config.directory + config.file, f)
+	start := time.Now()
+	for i := 0; i != config.iter; i++ {
+		if !config.noPrint && !config.benchmark {
+			clearScreen()
+			fmt.Println(matrix)
+		}
 		matrix.Cgol()
-		time.Sleep(time.Millisecond * 500)
+		if !config.benchmark {
+			time.Sleep(time.Millisecond * time.Duration(config.sleep))
+		}
+	}
+	t := time.Now()
+	elapsed := t.Sub(start)
+	fmt.Printf("runtime: %v\n", elapsed)
+	if(config.noPrint && !config.benchmark){
+		fmt.Println(matrix)
 	}
 }
