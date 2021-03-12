@@ -1,16 +1,16 @@
 package main
 
 import (
-	"fmt"
-	"strings"
-	"os"
 	"encoding/csv"
+	"fmt"
+	"os"
+	"strings"
 	"time"
 )
 
 type format struct {
 	live, dead string
-	delim rune
+	delim      rune
 }
 
 const (
@@ -20,18 +20,14 @@ const (
 type Array [][]bool
 
 type Matrix struct {
-	primary Array
+	primary   Array
 	secondary Array
-	x int
-	y int
+	x         int
+	y         int
 }
 
-func clearScreen(){
+func clearScreen() {
 	fmt.Println("\033[H\033[J")
-}
-
-func swap(a, b *Array){
-	*a, *b = *b, *a
 }
 
 func (m *Matrix) ReadFile(file string, f format) {
@@ -41,11 +37,10 @@ func (m *Matrix) ReadFile(file string, f format) {
 	}
 	r := csv.NewReader(csvfile)
 	r.Comma = f.delim
-	csvStr,err := r.ReadAll()
+	csvStr, err := r.ReadAll()
 	if err != nil {
 		panic(err)
 	}
-	fmt.Print(csvStr)
 	m.x = len(csvStr)
 	m.primary = make(Array, m.x)
 	m.secondary = make(Array, m.x)
@@ -67,7 +62,7 @@ func (m *Matrix) ReadFile(file string, f format) {
 	}
 }
 
-func (m Matrix) String() string{
+func (m Matrix) String() string {
 	var sb strings.Builder
 	for i := range m.primary {
 		for j := range m.primary {
@@ -84,57 +79,60 @@ func (m Matrix) String() string{
 	return sb.String()
 }
 
-func (matrix *Matrix) Cgol(){
-	var X, Y, count int
-	for i,row := range matrix.primary {
+func (matrix *Matrix) Cgol() {
+	var X, Y, count, m, n int
+	for i, row := range matrix.primary {
 		for j := range row {
 			// box
-			for m := -1; i<2; i++ {
-				for n:= -1; j<2; j++ {
-					if  i == 0 && m == -1 {
+			count = 0
+			for m = -1; m < 2; m++ {
+				for n = -1; n < 2; n++ {
+					if m == 0 && n == 0 {
+						continue
+					}
+					if i == 0 && m == -1 {
 						X = matrix.x - 1
-					} else if i == matrix.x - 1 && m == 1 {
+					} else if i == matrix.x-1 && m == 1 {
 						X = 0
+					} else {
+						X = i + m
 					}
 
-					if  j == 0 && n == -1 {
+					if j == 0 && n == -1 {
 						Y = matrix.y - 1
-					} else if j == matrix.y - 1 && n == 1 {
+					} else if j == matrix.y-1 && n == 1 {
 						Y = 0
+					} else {
+						Y = j + n
 					}
-					if matrix.primary[X][Y]{
+					if matrix.primary[X][Y] {
 						count++
-						fmt.Println("yay3")
 					}
 				}
 			}
 			if count == 3 {
-				matrix.secondary[X][Y] = true
-				fmt.Println("yay")
-			} else if matrix.primary[X][Y] && count == 2 {
-				matrix.secondary[X][Y] = true
-				fmt.Println("yay2")
+				matrix.secondary[i][j] = true
+			} else if matrix.primary[i][j] && count == 2 {
+				matrix.secondary[i][j] = true
 			}
 		}
 	}
-	matrix.primary = matrix.secondary
-	/*
+	matrix.primary, matrix.secondary = matrix.secondary, matrix.primary
 	for i := 0; i < matrix.x; i++ {
 		for j := 0; j < matrix.y; j++ {
 			matrix.secondary[i][j] = false
 		}
 	}
-	*/
 }
 
 func main() {
-	f := format{delim: ';', live:"1", dead:"0"}
+	f := format{delim: ';', live: "1", dead: "0"}
 	matrix := Matrix{}
 	matrix.ReadFile(defaultFile, f)
-	clearScreen()
-	fmt.Println(matrix)
-	time.Sleep(time.Second)
-	clearScreen()
-	matrix.Cgol()
-	fmt.Println(matrix)
+	for {
+		clearScreen()
+		fmt.Println(matrix)
+		matrix.Cgol()
+		time.Sleep(time.Millisecond * 500)
+	}
 }
