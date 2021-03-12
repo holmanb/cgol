@@ -4,6 +4,7 @@ import (
 	"encoding/csv"
 	"fmt"
 	"os"
+	"sync"
 	"strings"
 	"time"
 )
@@ -80,44 +81,52 @@ func (m Matrix) String() string {
 }
 
 func (matrix *Matrix) Cgol() {
-	var X, Y, count, m, n int
-	for i, row := range matrix.primary {
-		for j := range row {
-			// box
-			count = 0
-			for m = -1; m < 2; m++ {
-				for n = -1; n < 2; n++ {
-					if m == 0 && n == 0 {
-						continue
-					}
-					if i == 0 && m == -1 {
-						X = matrix.x - 1
-					} else if i == matrix.x-1 && m == 1 {
-						X = 0
-					} else {
-						X = i + m
-					}
+	var waitgroup sync.WaitGroup
+	for I, Row := range matrix.primary {
+		waitgroup.Add(1)
+		go func(i int, row []bool, matrix * Matrix, wg * sync.WaitGroup){
+			defer wg.Done()
+			for j := range row {
+				var X, Y, count, m, n int
+				// box
+				count = 0
+				for m = -1; m < 2; m++ {
+					for n = -1; n < 2; n++ {
+						if m == 0 && n == 0 {
+							continue
+						}
+						if i == 0 && m == -1 {
+							X = matrix.x - 1
+						} else if i == matrix.x-1 && m == 1 {
+							X = 0
+						} else {
+							X = i + m
+						}
 
-					if j == 0 && n == -1 {
-						Y = matrix.y - 1
-					} else if j == matrix.y-1 && n == 1 {
-						Y = 0
-					} else {
-						Y = j + n
-					}
-					if matrix.primary[X][Y] {
-						count++
+						if j == 0 && n == -1 {
+							Y = matrix.y - 1
+						} else if j == matrix.y-1 && n == 1 {
+							Y = 0
+						} else {
+							Y = j + n
+						}
+						if matrix.primary[X][Y] {
+							count++
+						}
 					}
 				}
+				if count == 3 {
+					matrix.secondary[i][j] = true
+				} else if matrix.primary[i][j] && count == 2 {
+					matrix.secondary[i][j] = true
+				}
 			}
-			if count == 3 {
-				matrix.secondary[i][j] = true
-			} else if matrix.primary[i][j] && count == 2 {
-				matrix.secondary[i][j] = true
-			}
-		}
+		}(I, Row, matrix, &waitgroup)
 	}
+	waitgroup.Wait()
 	matrix.primary, matrix.secondary = matrix.secondary, matrix.primary
+	/* todo - clearing this matrix can be parallel, but need a way to 
+	guarantee it doesn't get used prior to completion */
 	for i := 0; i < matrix.x; i++ {
 		for j := 0; j < matrix.y; j++ {
 			matrix.secondary[i][j] = false
