@@ -281,13 +281,14 @@ void print_arr(struct grid *g){
 	write_arr(g, stdout, &f);
 }
 
-void gen_rand_array(struct grid *g){
+void gen_rand_array(struct state *s){
 	long unsigned i, j;
-	srand((unsigned int) time(0));
-	printStep("Generating", "array size: %ld:%ld\n", g->x, g->y);
-	for(i = 0; i < g->x; i++){
-		for(j = 0; j < g->y ; j++){
-			rand() % 2 ? ClearBit(g->matrix,i,j) : SetBit(g->matrix,i,j);
+	printStep("Generating", "array size: %ld:%ld\n", s->inArr.x, s->inArr.y);
+	#pragma omp parallel for private(i, j)
+	for(i = 0; i < s->inArr.x; i++){
+		unsigned int seed = (unsigned int) time(NULL) + (unsigned int) i; /* + i to provide unique seed per thread */
+		for(j = 0; j < s->inArr.y; j++){
+			rand_r(&seed) % 2 ? ClearBit(s->inArr.matrix,i,j) : SetBit(s->inArr.matrix,i,j);
 		}
 	}
 }
@@ -477,7 +478,7 @@ int main(int argc, char **argv){
 		omp_set_num_threads((int)state.cfg.threads);
 	}
 	if(state.cfg.matrixSize){
-		gen_rand_array(&state.inArr);
+		gen_rand_array(&state);
 		strncat(state.message, "random generator", MSG_SIZE - strlen(CONDITION_MSG));
 		if(strcmp(DEFAULT_FILEPATH, state.filePath)){
 			/* save random data to file if -mf */
