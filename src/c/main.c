@@ -354,22 +354,11 @@ void life(struct grid * g){
 	g->newMatrix = tmp; /* old matrix will get memset at begining of next life()*/
 }
 
-jmp_buf __myExit;
-volatile int quitExecution = 0;
-void sigInt(int null){
-	quitExecution++;
-	longjmp(__myExit, 1);
-}
-
 void loop(struct state* state, struct grid * g){
 	const struct config * cfg = &state->cfg;
 	long int iter = cfg->iter;
-	signal(SIGINT, sigInt);
 	printStep("Looping","iterations: %ld\n",state->cfg.iter);
-	if(setjmp(__myExit)){
-		printStep("\b\b\b\b [Signal Received","sigint%s\n","");
-	}
-	while(iter && !quitExecution){
+	while(iter){
 		if(!cfg->noPrint){
 			render(g);
 			fputs(state->message, stdout);
@@ -470,10 +459,6 @@ int main(int argc, char **argv){
 	state.inArr.x = state.inArr.y = state.cfg.matrixSize;
 	pre_read_file(&state); /* populates state.inArr.x and state.inArr.y for allocation */
 	allocatedMatrixSize = alloc_matrix(&state.inArr, state.inArr.x, state.inArr.y);
-	if(setjmp(__myExit)){
-		printStep("\b\b\b\b [Signal Received","sigint exiting%s\n","");
-		exit(0);
-	}
 	if(state.cfg.threads){
 		omp_set_num_threads((int)state.cfg.threads);
 	}
