@@ -180,6 +180,7 @@ func main() {
 	t := time.Now()
 	elapsed := t.Sub(start)
 	fmt.Printf("runtime: %v\n", elapsed)
+	fmt.Printf("MBps %v\n", float64(matrix.x) * float64(matrix.y) * float64(config.iter) / float64(1024) / float64(1024) / elapsed.Seconds())
 	if(config.noPrint && !config.benchmark){
 		fmt.Println(matrix)
 	}
