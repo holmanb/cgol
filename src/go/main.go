@@ -37,6 +37,32 @@ const (
 
 type Array [][]bool
 
+func (a *Array) Clear(x, y int){
+	var waitgroup sync.WaitGroup
+	for i := 0; i < x; i++ {
+		waitgroup.Add(1)
+		go func(i, x, y int, a *Array, wg *sync.WaitGroup){
+			defer wg.Done()
+			for j := 0; j < y; j++ {
+				(*a)[i][j] = false
+			}
+		}(i, x, y, a, &waitgroup)
+	}
+	waitgroup.Wait()
+}
+
+func (a *Array) SetBit(x, y int){
+	(*a)[x][y] = true
+}
+
+func (a *Array) UnSetBit(x, y int){
+	(*a)[x][y] = false
+}
+
+func (a *Array) GetBit(x, y int) bool{
+	return (*a)[x][y]
+}
+
 type Matrix struct {
 	primary   Array
 	secondary Array
@@ -59,7 +85,9 @@ func (m *Matrix) Generate(x, y uint) {
 		m.secondary[i] = make([]bool, m.y)
 		for j := 0; j < m.y; j++ {
 			/* obviously there is room for improvement here, but for now it works */
-			m.primary[i][j] = rand.Uint32() % 2 == 1
+			if rand.Uint32() % 2 == 1 {
+				m.primary.SetBit(i, j)
+			}
 		}
 	}
 }
@@ -88,9 +116,7 @@ func (m *Matrix) ReadFile(file string, f format) {
 		m.secondary[i] = make([]bool, len(csvStr[i]))
 		for j := range csvStr {
 			if csvStr[i][j] == "1" {
-				m.primary[i][j] = true
-			} else if csvStr[i][j] == "0" {
-				m.primary[i][j] = false
+				m.primary.SetBit(i, j)
 			}
 		}
 	}
@@ -101,7 +127,7 @@ func (m Matrix) String() string {
 	for i := range m.primary {
 		for j := range m.primary {
 			sb.WriteString(" ")
-			if m.primary[i][j] {
+			if m.primary.GetBit(i, j) {
 				sb.WriteString("1")
 			} else {
 				sb.WriteString(" ")
@@ -143,33 +169,22 @@ func (matrix *Matrix) Cgol() {
 						} else {
 							Y = j + n
 						}
-						if matrix.primary[X][Y] {
+						if matrix.primary.GetBit(X, Y) {
 							count++
 						}
 					}
 				}
 				if count == 3 {
-					matrix.secondary[i][j] = true
-				} else if matrix.primary[i][j] && count == 2 {
-					matrix.secondary[i][j] = true
+					matrix.secondary.SetBit(i, j)
+				} else if matrix.primary.GetBit(i, j) && count == 2 {
+					matrix.secondary.SetBit(i, j)
 				}
 			}
 		}(I, Row, matrix, &waitgroup)
 	}
 	waitgroup.Wait()
 	matrix.primary, matrix.secondary = matrix.secondary, matrix.primary
-	/* todo - clearing this matrix can be parallel, but need a way to 
-	guarantee it doesn't get used prior to completion */
-	for i := 0; i < matrix.x; i++ {
-		waitgroup.Add(1)
-		go func(i int, matrix *Matrix, wg *sync.WaitGroup){
-			defer wg.Done()
-			for j := 0; j < matrix.y; j++ {
-				matrix.secondary[i][j] = false
-			}
-		}(i, matrix, &waitgroup)
-	}
-	waitgroup.Wait()
+	matrix.secondary.Clear(matrix.x, matrix.y)
 }
 
 func main() {
