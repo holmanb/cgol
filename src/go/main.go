@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/csv"
+	"math/rand"
 	"fmt"
 	"flag"
 	"os"
@@ -45,6 +46,22 @@ type Matrix struct {
 
 func clearScreen() {
 	fmt.Println("\033[H\033[J")
+}
+
+func (m *Matrix) Generate(x, y uint) {
+	m.x = int(x)
+	m.y = int(y)
+	rand.Seed(time.Now().UnixNano())
+	m.primary = make(Array, m.x)
+	m.secondary = make(Array, m.x)
+	for i := 0; i < m.x; i++ {
+		m.primary[i] = make([]bool, m.y)
+		m.secondary[i] = make([]bool, m.y)
+		for j := 0; j < m.y; j++ {
+			/* obviously there is room for improvement here, but for now it works */
+			m.primary[i][j] = rand.Uint32() % 2 == 1
+		}
+	}
 }
 
 func (m *Matrix) ReadFile(file string, f format) {
@@ -159,13 +176,14 @@ func main() {
 	flag.UintVar(&config.sleep, "s", config.sleep, "sleep time betweeen iterations")
 	flag.UintVar(&config.matrixSize, "m", config.matrixSize, "size of matrix to generate (not yet implemented)")
 	flag.Parse()
-	if config.matrixSize != 0{
-		panic("matrixSize random generation logic is not yet implemented")
-	}
 
 	f := format{delim: ';', live: "1", dead: "0"}
 	matrix := Matrix{}
-	matrix.ReadFile(config.directory + config.file, f)
+	if config.matrixSize != 0 {
+		matrix.Generate(config.matrixSize, config.matrixSize)
+	} else {
+		matrix.ReadFile(config.directory + config.file, f)
+	}
 	start := time.Now()
 	for i := 0; i != config.iter; i++ {
 		if !config.noPrint && !config.benchmark {
