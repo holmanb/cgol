@@ -9,12 +9,13 @@ import (
 	"sync"
 	"strings"
 	"time"
+	"runtime"
 )
 
 var config = &struct {
 	file, directory string
 	benchmark, noPrint bool
-	iter int
+	goroutines, iter int
 	sleep, matrixSize uint
 }{
 	file: "default",
@@ -24,6 +25,7 @@ var config = &struct {
 	iter: 10,
 	sleep: 100,
 	matrixSize: 0,
+	goroutines: 0,
 }
 
 type format struct {
@@ -33,9 +35,28 @@ type format struct {
 
 const (
 	defaultFile = "../../data/default"
+	bitSize = 32
 )
 
-type Array [][]bool
+type Array [][]uint32
+
+/* bitwise ops */
+func (a *Array) SetBit(x, y int){
+	(*a)[x][y / bitSize] |= (1 << (y % bitSize))
+}
+
+func (a *Array) UnSetBit(x, y int){
+	(*a)[x][y / bitSize] &= ^(1 << (y % bitSize))
+}
+
+func (a *Array) GetBit(x, y int) bool{
+	return (*a)[x][y / bitSize] & (1 << (y % bitSize)) != 0
+}
+
+// set entire uint32 (for clear & random number generation)
+func (a *Array) SetVal(x, y int, val uint32){
+	(*a)[x][y] = val
+}
 
 func (a *Array) Clear(x, y int){
 	var waitgroup sync.WaitGroup
@@ -43,24 +64,12 @@ func (a *Array) Clear(x, y int){
 		waitgroup.Add(1)
 		go func(i, x, y int, a *Array, wg *sync.WaitGroup){
 			defer wg.Done()
-			for j := 0; j < y; j++ {
-				(*a)[i][j] = false
+			for cell := range (*a)[i] {
+				a.SetVal(i, cell, 0)
 			}
 		}(i, x, y, a, &waitgroup)
 	}
 	waitgroup.Wait()
-}
-
-func (a *Array) SetBit(x, y int){
-	(*a)[x][y] = true
-}
-
-func (a *Array) UnSetBit(x, y int){
-	(*a)[x][y] = false
-}
-
-func (a *Array) GetBit(x, y int) bool{
-	return (*a)[x][y]
 }
 
 type Matrix struct {
@@ -81,13 +90,10 @@ func (m *Matrix) Generate(x, y uint) {
 	m.primary = make(Array, m.x)
 	m.secondary = make(Array, m.x)
 	for i := 0; i < m.x; i++ {
-		m.primary[i] = make([]bool, m.y)
-		m.secondary[i] = make([]bool, m.y)
-		for j := 0; j < m.y; j++ {
-			/* obviously there is room for improvement here, but for now it works */
-			if rand.Uint32() % 2 == 1 {
-				m.primary.SetBit(i, j)
-			}
+		m.primary[i] = make([]uint32, m.y / bitSize + 1)
+		m.secondary[i] = make([]uint32, m.y / bitSize + 1)
+		for cell := range m.primary[i] {
+			m.primary.SetVal(i, cell, rand.Uint32())
 		}
 	}
 }
@@ -112,8 +118,8 @@ func (m *Matrix) ReadFile(file string, f format) {
 		} else if len(csvStr[i]) != m.y {
 			panic("error parsing file, jagged array")
 		}
-		m.primary[i] = make([]bool, len(csvStr[i]))
-		m.secondary[i] = make([]bool, len(csvStr[i]))
+		m.primary[i] = make([]uint32, len(csvStr[i]) / bitSize + 1)
+		m.secondary[i] = make([]uint32, len(csvStr[i]) / bitSize + 1)
 		for j := range csvStr {
 			if csvStr[i][j] == "1" {
 				m.primary.SetBit(i, j)
@@ -141,11 +147,11 @@ func (m Matrix) String() string {
 
 func (matrix *Matrix) Cgol() {
 	var waitgroup sync.WaitGroup
-	for I, Row := range matrix.primary {
+	for I := 0; I < matrix.x; I++ {
 		waitgroup.Add(1)
-		go func(i int, row []bool, matrix * Matrix, wg * sync.WaitGroup){
+		go func(i int, row []uint32, matrix * Matrix, wg * sync.WaitGroup){
 			defer wg.Done()
-			for j := range row {
+			for j := 0; j < matrix.x; j++ {
 				var X, Y, count, m, n int
 				// box
 				count = 0
@@ -180,7 +186,7 @@ func (matrix *Matrix) Cgol() {
 					matrix.secondary.SetBit(i, j)
 				}
 			}
-		}(I, Row, matrix, &waitgroup)
+		}(I, matrix.primary[I], matrix, &waitgroup)
 	}
 	waitgroup.Wait()
 	matrix.primary, matrix.secondary = matrix.secondary, matrix.primary
@@ -193,9 +199,13 @@ func main() {
 	flag.BoolVar(&config.benchmark, "b", config.benchmark, "benchmark defaults")
 	flag.BoolVar(&config.noPrint, "n", config.noPrint, "no print - only print the final result")
 	flag.IntVar(&config.iter, "i", config.iter, "iterations to run")
+	flag.IntVar(&config.goroutines, "t", config.goroutines, "number of goroutines to allow")
 	flag.UintVar(&config.sleep, "s", config.sleep, "sleep time betweeen iterations")
-	flag.UintVar(&config.matrixSize, "m", config.matrixSize, "size of matrix to generate (not yet implemented)")
+	flag.UintVar(&config.matrixSize, "m", config.matrixSize, "size of matrix to generate")
 	flag.Parse()
+	if config.goroutines > 0 {
+		runtime.GOMAXPROCS(config.goroutines)
+	}
 
 	f := format{delim: ';', live: "1", dead: "0"}
 	matrix := Matrix{}
@@ -218,8 +228,9 @@ func main() {
 	t := time.Now()
 	elapsed := t.Sub(start)
 	fmt.Printf("runtime: %v\n", elapsed)
-	fmt.Printf("MBps %v\n", float64(matrix.x) * float64(matrix.y) * float64(config.iter) / float64(1024) / float64(1024) / elapsed.Seconds())
-	if(config.noPrint && !config.benchmark){
+	if config.benchmark {
+		fmt.Printf("MBps %v\n", float64(matrix.x) * float64(matrix.y) * float64(config.iter) / float64(1024) / float64(1024) / elapsed.Seconds())
+	} else if(config.noPrint){
 		fmt.Println(matrix)
 	}
 }
