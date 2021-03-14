@@ -161,10 +161,15 @@ func (matrix *Matrix) Cgol() {
 	/* todo - clearing this matrix can be parallel, but need a way to 
 	guarantee it doesn't get used prior to completion */
 	for i := 0; i < matrix.x; i++ {
-		for j := 0; j < matrix.y; j++ {
-			matrix.secondary[i][j] = false
-		}
+		waitgroup.Add(1)
+		go func(i int, matrix *Matrix, wg *sync.WaitGroup){
+			defer wg.Done()
+			for j := 0; j < matrix.y; j++ {
+				matrix.secondary[i][j] = false
+			}
+		}(i, matrix, &waitgroup)
 	}
+	waitgroup.Wait()
 }
 
 func main() {
