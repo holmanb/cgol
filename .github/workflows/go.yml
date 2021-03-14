@@ -1,0 +1,27 @@
+name: go
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  linux:
+    runs-on: ubuntu-20.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2.0.0
+
+      - name: Dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install golang
+      - name: Setup
+        run: |
+          cd src/go 
+          go build
+
+      - name: Build & Test
+        run: |
+          cd src/go && go test -bench=Life[2-9]
+
+
