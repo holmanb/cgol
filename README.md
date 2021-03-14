@@ -15,11 +15,13 @@ Conway's Game of Life is a game dictated by a set of rules and an initial condit
 
 The aim of this project is to idiomatically implement this game in multiple programming languages to explore multiple different languages' ability to solve embarrassingly parallel problems.
 
-Currently implementations:
+Current implementations:
+
 	- C (using OpenMP)
 	- Go (using goroutines)
 
 Notes:
+
 	- data format is CSV
 	- terminal is used to display the output of each generation (simple and portable across \*nix systems)
 	- arbitrary finite sizes (defined at runtime) are supported
