@@ -300,12 +300,12 @@ void render(struct grid *g){
 
 /* cgol */
 void life(struct grid * g){
-	unsigned long i, j, count, x, y, t;
+	unsigned long i, j, count, x, y, t; //, u;
 	int ip, jp;
 	bool **tmp; /* for swap */
 	init_arr(g); /* clear matrix */
 
-	#pragma omp parallel for private(x, y, jp, ip)
+	#pragma omp parallel for private(x, y, jp, ip, count, t)//, u)
 	for(i = 0; i < g->x; i++){
 		for(j = 0; j < g->y; j++){
 			count = 0;
@@ -315,13 +315,15 @@ void life(struct grid * g){
 					/* skip 0,0 */
 					if(jp|ip){
 						/* wrap edges */
-						if(!i && ip<0){
-							x = g->x - 1;
-						}else if((t = i + (unsigned long)ip) >= g->x){
-							x = 0;
-						}else{
-							x = t;
-						}
+						t = (i + (unsigned long)ip);
+						x = ((!i && ip<0) * (g->x - 1)) + (!((t) >= g->x)) * t;
+						/*u = (j + (unsigned long)jp);
+						y = ((!j && jp<0) * (g->y - 1)) + (!((u) >= g->y)) * u;
+						making the x computation branchless doubles perf in dev system (i5 / gcc)
+						making the y computation branchless degrades perf a little, so leaving it as is
+						until better compiler / architecture coverage is obtained
+						*/
+
 						if(!j && jp<0){
 							y = g->y - 1;
 						}else if((t = j + (unsigned long)jp) >= g->y){

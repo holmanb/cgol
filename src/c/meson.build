@@ -3,6 +3,7 @@ project('cgol', 'c',
   license: 'MIT',
   default_options: [
     'optimization=3',
+    'march=native',
     'debug=true',
   ],
   version : '1.0.0')
