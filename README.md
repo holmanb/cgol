@@ -17,8 +17,9 @@ The aim of this project is to idiomatically implement this game in multiple prog
 
 Current implementations:
 
-	- C (using OpenMP)
-	- Go (using goroutines)
+	- C (OpenMP)
+	- Go (goroutines)
+	- Rust (work in progress - serial algorithm is complete)
 
 Notes:
 

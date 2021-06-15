@@ -30,7 +30,7 @@ fn main() {
         l.life();
         l.print();
     }
-//    life_loop();
+    life_loop();
 }
 
 #[derive(Debug, Default)]
