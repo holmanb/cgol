@@ -19,7 +19,8 @@ Current implementations:
 
 	- C (OpenMP)
 	- Go (goroutines)
-	- Rust (work in progress - serial algorithm is complete)
+	- Rust (not parallel yet)
+	- Python (multiprocessing, shared memory)
 
 Notes:
 

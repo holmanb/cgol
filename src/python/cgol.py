@@ -5,11 +5,11 @@ import time
 import argparse
 from multiprocessing import Pool, shared_memory
 import numpy as np
+import numpy.random
 
 
 '''
 TODO Priority:
-    - make proc functions strided
     - check nparray mem layout (for potential false sharing)
     - bitpack
     - profile large matrixes
@@ -27,24 +27,40 @@ def args():
     '''
     parser = argparse.ArgumentParser(description='Conway\'s Game of Life')
 
-    parser.add_argument('-b', action='store_const', const=True)
-    parser.add_argument('-i', type=int, help='iterations', default=10)
-    parser.add_argument('-m', type=int, help='matrix size')
-    parser.add_argument('-s', type=float, help='sleep time between iterations',
+    parser.add_argument('-b', '--benchmark', action='store_const', const=True)
+    parser.add_argument('-i', '--iterations', type=int, help='iterations',
+            default=10)
+    parser.add_argument('-m', '--matrix', type=int, help='matrix size')
+    parser.add_argument('-p', '--print_final', action='store_const', const=True)
+    parser.add_argument('--seed', type=int, help='matrix seed generator',
+            default=None)
+    parser.add_argument('-s', '--sleep', type=float,
+            help='sleep time between iterations',
             default=0.1)
-    parser.add_argument('-t', type=int, help='number of processes to use',
+    parser.add_argument('-t', '--threads', type=int,
+            help='number of processes to use',
             default=1)
 
-    return parser.parse_args()
+    args = parser.parse_args()
+    if args.seed and not args.matrix:
+        raise ValueError("Invalid input, --matrix required for --seed")
+    return args
 
 
 def main():
     ''' entry point
     '''
-    global arr_1, arr_2
+    global arr_1, arr_2, config
+
     shared_a = shared_b = None
     config = args()
-    gen_arr = np.genfromtxt("../../data/flier", dtype=int, delimiter=';')
+    if config.matrix:
+        rng = np.random.default_rng(config.seed)
+        ints = rng.integers(low=0, high=2, size=config.matrix**2)
+
+        gen_arr = np.reshape(ints, (config.matrix, config.matrix))
+    else:
+        gen_arr = np.genfromtxt("../../data/flier", dtype=int, delimiter=';')
 
     try:
         # current & previous generations, shared mem for simultaneous access
@@ -62,7 +78,7 @@ def main():
         if not arr_1.size or not arr_2.size:
             raise ValueError("Invalid matrix")
 
-        loop(config)
+        loop()
     finally:
         if shared_a:
             shared_a.close()
@@ -75,8 +91,7 @@ def main():
 def swap():
     ''' this function exists temporarily for profiling
     '''
-    global arr_1
-    global arr_2
+    global arr_1, arr_2
     # TODO: profile and eliminate this function
     # (what's the diff between the below options)?
     # arr_1[:] = arr_2[:]
@@ -127,8 +142,7 @@ def cgol():
     '''
 
     # t=1 cProfile run shows about 25% of time is spent in this function
-    global arr_1
-    global arr_2
+    global arr_1, arr_2
     for row_index, row_val in enumerate(arr_1):
         for col_index in range(len((row_val))):
             summation = sum_list(row_index, col_index)
@@ -141,17 +155,25 @@ def cgol():
     swap()
 
 
-def process_row(row_index):
-    global arr_2
-    global arr_1
-    for col_index in range(len(arr_1[row_index])):
-        summation = sum_list(row_index, col_index)
-        if summation == 3:
-            arr_2[row_index][col_index] = 1
-        elif summation == 2 and arr_1[row_index][col_index]:
-            arr_2[row_index][col_index] = 1
-        else:
-            arr_2[row_index][col_index] = 0
+def process_rows(row_index):
+    ''' strided row processing
+    '''
+
+    global arr_1, arr_2
+
+    num_rows = len(arr_1)
+    num_cols = len(arr_1[row_index])
+
+    for i in range(row_index, num_rows, config.threads):
+
+        for col_index in range(num_cols):
+            summation = sum_list(i, col_index)
+            if summation == 3:
+                arr_2[i][col_index] = 1
+            elif summation == 2 and arr_1[i][col_index]:
+                arr_2[i][col_index] = 1
+            else:
+                arr_2[i][col_index] = 0
 
 
 def cgol_multiprocess(pool):
@@ -159,19 +181,15 @@ def cgol_multiprocess(pool):
     '''
     results = []
 
-    # TODO: rather than spawn from the pool once per line, change algo to stride
-    # (will primarily benefit small matrix perf by reducing lock contention while spawning)
-    # additionally will require less obj.wait() calls (likely negligable)
-
     # cProfile with -t=$(nproc) shows most time is spent on lock contention and
     # time -t=$(nproc) shows about 50% of time is system is system time (does waiting on mutex count as system time?)
 
     def raise_error(err):
         raise err
 
-    for row_index in range(len(arr_1)):
+    for row_index in range(config.threads):
         result = pool.apply_async(
-                process_row,
+                process_rows,
                 args=(row_index,),
                 error_callback=raise_error
                 )
@@ -198,20 +216,20 @@ def display(counter):
     print(out.replace('0', ' '))
 
 
-def loop(config):
+def loop():
     ''' loop until interrupt, step generation, print, sleep
     '''
     counter = 0
     pool = None
 
-    if config.t > 1:
-        pool = Pool(processes=config.t)
+    if config.threads > 1:
+        pool = Pool(processes=config.threads)
     try:
-        while counter != config.i:
-            if not config.b:
-                time.sleep(config.s)
+        while counter != config.iterations:
+            if not config.benchmark:
+                time.sleep(config.sleep)
                 display(counter)
-            if config.t == 1:
+            if config.threads == 1:
                 cgol()
             else:
                 cgol_multiprocess(pool)
@@ -219,9 +237,11 @@ def loop(config):
     except KeyboardInterrupt:
         # always display a full screen on interrupt
         # TODO: verify atomicity (i.e. no partially updated generation)
-        if not config.b:
+        if config.print_final or not config.benchmark:
             display(counter)
     finally:
+        if config.print_final:
+            display(counter)
         if pool:
             pool.terminate()
             pool.close()
