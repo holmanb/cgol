@@ -5,7 +5,6 @@ import time
 import argparse
 from multiprocessing import Pool, shared_memory
 import numpy as np
-import numpy.random
 
 
 '''
@@ -27,7 +26,8 @@ def args():
     '''
     parser = argparse.ArgumentParser(description='Conway\'s Game of Life')
 
-    parser.add_argument('-b', '--benchmark', action='store_const', const=True)
+    parser.add_argument('-b', '--benchmark', action='store_const', const=True,
+            help='default mode for benchmarking - no printing or sleeping')
     parser.add_argument('-i', '--iterations', type=int, help='iterations',
             default=10)
     parser.add_argument('-m', '--matrix', type=int, help='matrix size')
@@ -88,22 +88,6 @@ def main():
             shared_b.unlink()
 
 
-def swap():
-    ''' this function exists temporarily for profiling
-    '''
-    global arr_1, arr_2
-    # TODO: profile and eliminate this function
-    # (what's the diff between the below options)?
-    # arr_1[:] = arr_2[:]
-    # arr_1[:] = arr_2
-    # arr_1[:], arr_2[:] = arr_2[:], arr_1[:]
-    # memoryview(arr_1)[:] = memoryview(arr_2)
-
-    np.copyto(arr_1, arr_2)
-    # TODO: check if zeroing arr_2 and eliminating the branch zero assignment
-    # branch has any affect?
-
-
 def sum_list(i, j):
     ''' return the count of living cells in the 3x3 grid around arr[i][j]
     '''
@@ -152,7 +136,7 @@ def cgol():
                 arr_2[row_index][col_index] = 1
             else:
                 arr_2[row_index][col_index] = 0
-    swap()
+    np.copyto(arr_1, arr_2)
 
 
 def process_rows(row_index):
@@ -199,7 +183,7 @@ def cgol_multiprocess(pool):
         if not obj.successful():
             # valueerror is not appropriate, use better exception
             raise ValueError("Exception raised in subproc")
-    swap()
+    np.copyto(arr_1, arr_2)
 
 
 def display(counter):
