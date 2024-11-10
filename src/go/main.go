@@ -86,12 +86,18 @@ func clearScreen() {
 func (m *Matrix) Generate(x, y uint) {
 	m.x = int(x)
 	m.y = int(y)
+	// integer division, adjust array size for sizes not divisible by 32
+	arraySize := m.y / bitSize
+	if m.y%bitSize != 0 {
+		arraySize += 1
+	}
 	rand.Seed(time.Now().UnixNano())
 	m.primary = make(Array, m.x)
 	m.secondary = make(Array, m.x)
 	for i := 0; i < m.x; i++ {
-		m.primary[i] = make([]uint32, m.y/bitSize+1)
-		m.secondary[i] = make([]uint32, m.y/bitSize+1)
+
+		m.primary[i] = make([]uint32, arraySize)
+		m.secondary[i] = make([]uint32, arraySize)
 		for cell := range m.primary[i] {
 			m.primary.SetVal(i, cell, rand.Uint32())
 		}
@@ -132,13 +138,11 @@ func (m Matrix) String() string {
 	var sb strings.Builder
 	for i := range m.primary {
 		for j := range m.primary {
-			sb.WriteString(" ")
 			if m.primary.GetBit(i, j) {
-				sb.WriteString("1")
+				sb.WriteString(" 1 ")
 			} else {
-				sb.WriteString(" ")
+				sb.WriteString("   ")
 			}
-			sb.WriteString(" ")
 		}
 		sb.WriteString("\n")
 	}
@@ -228,6 +232,14 @@ func main() {
 	t := time.Now()
 	elapsed := t.Sub(start)
 	fmt.Printf("runtime: %v\n", elapsed)
+	fmt.Printf(
+		"memory used: %v * %v = %v bytes of data for %v x %v array\n",
+		cap(matrix.primary),
+		cap(matrix.primary[0]),
+		cap(matrix.primary)*cap(matrix.primary[0]),
+		matrix.x,
+		matrix.y,
+	)
 	if config.benchmark {
 		fmt.Printf("MBps %v\n", float64(matrix.x)*float64(matrix.y)*float64(config.iter)/float64(1024)/float64(1024)/elapsed.Seconds())
 	} else if config.noPrint {
