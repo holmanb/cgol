@@ -149,48 +149,49 @@ func (m Matrix) String() string {
 	return sb.String()
 }
 
+func run(i int, j int, matrix *Matrix, wg *sync.WaitGroup) {
+	defer wg.Done()
+	var X, Y, count, m, n int
+	// box
+	count = 0
+	for m = -1; m < 2; m++ {
+		for n = -1; n < 2; n++ {
+			if m == 0 && n == 0 {
+				continue
+			}
+			if i == 0 && m == -1 {
+				X = matrix.x - 1
+			} else if i == matrix.x-1 && m == 1 {
+				X = 0
+			} else {
+				X = i + m
+			}
+
+			if j == 0 && n == -1 {
+				Y = matrix.y - 1
+			} else if j == matrix.y-1 && n == 1 {
+				Y = 0
+			} else {
+				Y = j + n
+			}
+			if matrix.primary.GetBit(X, Y) {
+				count++
+			}
+		}
+	}
+	if count == 3 {
+		matrix.secondary.SetBit(i, j)
+	} else if matrix.primary.GetBit(i, j) && count == 2 {
+		matrix.secondary.SetBit(i, j)
+	}
+}
 func (matrix *Matrix) Cgol() {
 	var waitgroup sync.WaitGroup
-	for I := 0; I < matrix.x; I++ {
-		waitgroup.Add(1)
-		go func(i int, row []uint32, matrix *Matrix, wg *sync.WaitGroup) {
-			defer wg.Done()
-			for j := 0; j < matrix.x; j++ {
-				var X, Y, count, m, n int
-				// box
-				count = 0
-				for m = -1; m < 2; m++ {
-					for n = -1; n < 2; n++ {
-						if m == 0 && n == 0 {
-							continue
-						}
-						if i == 0 && m == -1 {
-							X = matrix.x - 1
-						} else if i == matrix.x-1 && m == 1 {
-							X = 0
-						} else {
-							X = i + m
-						}
-
-						if j == 0 && n == -1 {
-							Y = matrix.y - 1
-						} else if j == matrix.y-1 && n == 1 {
-							Y = 0
-						} else {
-							Y = j + n
-						}
-						if matrix.primary.GetBit(X, Y) {
-							count++
-						}
-					}
-				}
-				if count == 3 {
-					matrix.secondary.SetBit(i, j)
-				} else if matrix.primary.GetBit(i, j) && count == 2 {
-					matrix.secondary.SetBit(i, j)
-				}
-			}
-		}(I, matrix.primary[I], matrix, &waitgroup)
+	for i := 0; i < matrix.x; i++ {
+		for j := 0; j < matrix.x; j++ {
+			waitgroup.Add(1)
+			go run(i, j, matrix, &waitgroup)
+		}
 	}
 	waitgroup.Wait()
 	matrix.primary, matrix.secondary = matrix.secondary, matrix.primary
