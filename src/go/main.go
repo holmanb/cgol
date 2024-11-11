@@ -72,6 +72,11 @@ func (a *Array) Clear(x, y int) {
 	waitgroup.Wait()
 }
 
+type Vertex struct {
+	x int
+	y int
+}
+
 type Matrix struct {
 	primary   Array
 	secondary Array
@@ -149,30 +154,39 @@ func (m Matrix) String() string {
 	return sb.String()
 }
 
-func run(i int, j int, matrix *Matrix, wg *sync.WaitGroup) {
+func run(v Vertex, matrix *Matrix, wg *sync.WaitGroup) {
 	defer wg.Done()
 	var X, Y, count, m, n int
-	// box
 	count = 0
+	// count live cells in matrix
 	for m = -1; m < 2; m++ {
 		for n = -1; n < 2; n++ {
 			if m == 0 && n == 0 {
+				// don't include current cell in the count
 				continue
 			}
-			if i == 0 && m == -1 {
+			// check x axis wrapping
+			if v.x == 0 && m == -1 {
+				// wrap left
 				X = matrix.x - 1
-			} else if i == matrix.x-1 && m == 1 {
+			} else if v.x == matrix.x-1 && m == 1 {
+				// wrap right
 				X = 0
 			} else {
-				X = i + m
+				// no wrap
+				X = v.x + m
 			}
 
-			if j == 0 && n == -1 {
+			// check y axis wrapping
+			if v.y == 0 && n == -1 {
+				// wrap down
 				Y = matrix.y - 1
-			} else if j == matrix.y-1 && n == 1 {
+			} else if v.y == matrix.y-1 && n == 1 {
+				// wrap up
 				Y = 0
 			} else {
-				Y = j + n
+				// no wrap
+				Y = v.y + n
 			}
 			if matrix.primary.GetBit(X, Y) {
 				count++
@@ -180,9 +194,9 @@ func run(i int, j int, matrix *Matrix, wg *sync.WaitGroup) {
 		}
 	}
 	if count == 3 {
-		matrix.secondary.SetBit(i, j)
-	} else if matrix.primary.GetBit(i, j) && count == 2 {
-		matrix.secondary.SetBit(i, j)
+		matrix.secondary.SetBit(v.x, v.y)
+	} else if count == 2 && matrix.primary.GetBit(v.x, v.y) {
+		matrix.secondary.SetBit(v.x, v.y)
 	}
 }
 func (matrix *Matrix) Cgol() {
@@ -190,7 +204,7 @@ func (matrix *Matrix) Cgol() {
 	for i := 0; i < matrix.x; i++ {
 		for j := 0; j < matrix.x; j++ {
 			waitgroup.Add(1)
-			go run(i, j, matrix, &waitgroup)
+			go run(Vertex{i, j}, matrix, &waitgroup)
 		}
 	}
 	waitgroup.Wait()
